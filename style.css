@@ -1,5 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=Patrik+Hand+SC&display=swap');
+
 body {
-  font-family: sans-serif;
+  font-family: 'Patrik Hand SC', cursive; /* Přidáno písmo "Patrik Hand SC" */
   background-color: #f4f4f4;
   padding: 2rem;
 }
@@ -64,8 +66,7 @@ tr:nth-child(even) {
 .plus-one {
   background-color: #27ae60; /* zelená */
   color: white;
-  font-weight: normal;
-  font-size: smaller;
+  font-weight: bold;
   padding: 3px 6px; /* Adjust padding to make it look like a small button */
   border-radius: 5px; /* Add border-radius for rounded corners */
   display: inline-block; /* Ensures padding and border-radius work correctly */
