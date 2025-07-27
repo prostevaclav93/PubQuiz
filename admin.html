@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Pubkvízu</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <section>
+    <h2>Přidat tým</h2>
+    <input type="text" id="team-name" placeholder="Název týmu" />
+    <button id="add-team">Přidat tým</button>
+    <ul id="team-list"></ul>
+  </section>
+
+  <section id="control" style="display:block;">
+    <h2>Ovládání kvízu</h2>
+    <button id="next-round">Další kolo</button>
+    <button id="save-and-show">Otevřít zobrazení</button>
+    <button id="next-display-team">Zobrazit další tým</button>
+    <button id="reset-display">Resetovat zobrazení</button>
+    <button id="reset-quiz">Resetovat kvíz</button>
+
+    <h2>Přehled skóre (Kolo <span id="round-number">1</span>)</h2>
+    <table id="admin-table" border="1" cellspacing="0" cellpadding="8">
+      <thead id="admin-table-head"></thead>
+      <tbody id="admin-table-body"></tbody>
+    </table>
+  </section>
+
+  <script src="script-admin.js"></script>
+</body>
+</html>

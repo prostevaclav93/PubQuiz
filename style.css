@@ -1,0 +1,73 @@
+body {
+  font-family: sans-serif;
+  background-color: #f4f4f4;
+  padding: 2rem;
+}
+
+h1 {
+  color: #2c3e50;
+}
+
+input[type="text"], input[type="number"] {
+  padding: 0.4rem;
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+  width: 200px;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  margin: 0.5rem 0;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #2980b9;
+}
+
+#ranking {
+  font-size: 1.5rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+th, td {
+  text-align: center;
+}
+
+th {
+  background-color: #3498db;
+  color: white;
+}
+
+tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+/* Styly pro zvýraznění aktuálního kola */
+.current-round-header {
+  background-color: #f39c12 !important; /* Oranžová barva pro hlavičku kola */
+  color: white !important;
+}
+
+.current-round-cell {
+  background-color: #f7dc6f; /* Světlejší oranžová pro buňky skóre */
+}
+
+.plus-one {
+  background-color: #27ae60; /* zelená */
+  color: white;
+  font-weight: normal;
+  font-size: smaller;
+  padding: 3px 6px; /* Adjust padding to make it look like a small button */
+  border-radius: 5px; /* Add border-radius for rounded corners */
+  display: inline-block; /* Ensures padding and border-radius work correctly */
+  margin-left: 5px; /* Add a little space from the regular score */
+}
