@@ -1,0 +1,17 @@
+{
+  "build": {
+    "env": {
+      "VITE_SUPABASE_URL": "@supabase-url",
+      "VITE_SUPABASE_KEY": "@supabase-key"
+    },
+    "installCommand": "npm install",
+    "buildCommand": "npm run build",
+    "outputDirectory": "dist"
+  },
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Patrick+Hand+SC&display=swap');
+
+body {
+  font-family: "Patrick Hand SC", cursive;
+  font-weight: 400;
+  font-style: normal;
+  background-color: #f0fdf4; /* světlounce zelené pozadí */
+  color: #0f172a; /* tmavý text */
+}
+
+h1 {
+  color: #14532d; /* lesní zelená */
+}
+
+input[type="text"], input[type="number"] {
+  padding: 0.4rem;
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+  width: 200px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  background-color: #14532d; /* lesní zelená */
+  color: white;
+  border: none;
+  margin: 0.5rem 0;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: #3ba673; /* jemnější zelená */
+}
+
+#ranking {
+  font-size: 1.5rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+th, td {
+  text-align: center;
+  padding: 0.6rem;
+}
+
+th {
+  background-color: #14532d; /* lesní zelená */
+  color: white;
+}
+
+tr:nth-child(even) {
+  background-color: #ecfdf5; /* jemná zelenobílá */
+}
+
+/* ✨ Zvýraznění aktuálního kola */
+.current-round-header {
+  background-color: #f39c12 !important; /* sytá oranžová */
+  color: white !important;
+}
+
+.current-round-cell {
+  background-color: #f7dc6f !important; /* světle zlatá */
+  font-weight: bold;
+}
+
+/* +1 štítek */
+.plus-one {
+  background-color: #14532d; /* tmavá lesní zelená */
+  color: white;
+  font-weight: bold;
+  padding: 3px 6px;
+  border-radius: 5px;
+  display: inline-block;
+  margin-left: 5px;
+  transition: background-color 0.3s ease;
+}
+
+.plus-one:hover {
+  background-color: #3ba673; /* světlejší zelená na hover */
+}
