@@ -1,14 +1,22 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "env": {
-    "VITE_SUPABASE_URL": "@supabase-url",
-    "VITE_SUPABASE_KEY": "@supabase-key"
-  },
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "/$1"
+      "src": "/quiz-history.html",
+      "dest": "/quiz-history.html"
+    },
+    {
+      "src": "/display.html",
+      "dest": "/display.html"
+    },
+    {
+      "src": "/index.html",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/",
+      "dest": "/index.html"
     }
   ]
 }
