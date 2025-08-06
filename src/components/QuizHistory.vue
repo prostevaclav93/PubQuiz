@@ -1,8 +1,13 @@
 <template>
   <div class="history-container">
     <header class="header">
+      <a href="/index.html" class="back-to-admin-button">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-left-circle-fill" viewBox="0 0 16 16">
+          <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.5 7.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5H11.5z"/>
+        </svg>
+        Zpět do adminu
+      </a>
       <h1>Historie dokončených kvízů</h1>
-      <a href="/index.html" class="back-to-admin-button">Zpět do adminu</a>
     </header>
 
     <section class="admin-section filter-section">
@@ -24,8 +29,15 @@
       <h3>Seznam kvízů ({{ completedQuizzes.length }})</h3>
       <ul class="quiz-list">
         <li v-for="quiz in completedQuizzes" :key="quiz.id">
-          {{ formattedQuizDate(quiz.quiz_date) }} v {{ quiz.places.name }}
-          <button @click="showDetails(quiz.id)" class="blue-button">Zobrazit detaily</button>
+          <span>{{ formattedQuizDate(quiz.quiz_date) }} v {{ quiz.places.name }}</span>
+          <div class="actions">
+            <button @click="showDetails(quiz.id)" class="button blue-button">Zobrazit detaily</button>
+            <button @click="deleteQuiz(quiz.id)" class="button delete-button">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash-fill" viewBox="0 0 16 16">
+                <path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7.5a1 1 0 0 0-1 1h-1zM4 5h8v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5zm.5 2a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 7a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 7zm3.5 0a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5z"/>
+              </svg>
+            </button>
+          </div>
         </li>
       </ul>
     </section>
@@ -57,14 +69,16 @@
           </tbody>
         </table>
       </div>
-      <button @click="selectedQuiz = null" class="red-button mt-4">Zavřít detaily</button>
+      <button @click="selectedQuiz = null" class="button red-button mt-4">Zavřít detaily</button>
     </section>
   </div>
+  <MessageBox ref="messageBoxRef" />
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { supabase } from '../supabase/supabaseClient';
+import MessageBox from './MessageBox.vue';
 
 const completedQuizzes = ref([]);
 const places = ref([]);
@@ -72,6 +86,8 @@ const selectedQuiz = ref(null);
 const selectedDate = ref('');
 const selectedPlaceId = ref('');
 const MAX_ROUNDS_LIMIT = 5;
+
+const messageBoxRef = ref(null);
 
 onMounted(async () => {
   await fetchPlaces();
@@ -120,6 +136,29 @@ const showDetails = async (quizId) => {
   }
 };
 
+const deleteQuiz = async (quizId) => {
+  const confirmation = await messageBoxRef.value.showConfirm('Opravdu chcete smazat tento kvíz z historie? Tato akce je nevratná!');
+  if (!confirmation) {
+    return;
+  }
+
+  // Předpokládáme, že databázové schéma má kaskádní mazání, takže smazání instance smaže i týmy a skóre.
+  const { error } = await supabase
+    .from('quiz_instances')
+    .delete()
+    .eq('id', quizId);
+
+  if (error) {
+    console.error('Chyba při mazání kvízu:', error);
+    if (messageBoxRef.value) messageBoxRef.value.showMessage('Chyba při mazání kvízu.');
+  } else {
+    // Okamžitá aktualizace seznamu
+    completedQuizzes.value = completedQuizzes.value.filter(quiz => quiz.id !== quizId);
+    selectedQuiz.value = null; // Pokud byl zobrazen, zavřeme detaily
+    if (messageBoxRef.value) messageBoxRef.value.showMessage('Kvíz byl úspěšně smazán.');
+  }
+};
+
 const getScoreValue = (quizTeam, roundNum, type) => {
   const score = quizTeam.scores.find(s => s.round_number === roundNum);
   return score ? score[type] : 0;
@@ -147,32 +186,40 @@ const formattedQuizDate = (dateString) => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
-  font-family: Arial, sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f0f4f8;
+  color: #334155;
+  min-height: 100vh;
 }
 
 .header {
   text-align: center;
   margin-bottom: 2rem;
-  position: relative; /* Potřebné pro absolutní pozicování tlačítka */
+  position: relative;
 }
 
 .header h1 {
   font-size: 2.5rem;
-  margin-bottom: 0.5rem;
+  font-weight: 700;
   color: #14532d;
+  margin-bottom: 0.5rem;
 }
 
 .back-to-admin-button {
   position: absolute;
   top: 0;
   left: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background-color: #3b82f6; /* Modrá, aby se odlišila */
+  background-color: #3b82f6;
   color: white;
   text-decoration: none;
-  border-radius: 6px;
+  border-radius: 9999px; /* Pill shape */
   font-weight: 600;
   transition: background-color 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .back-to-admin-button:hover {
@@ -181,9 +228,9 @@ const formattedQuizDate = (dateString) => {
 
 .admin-section {
   background-color: white;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   margin-bottom: 2rem;
 }
 
@@ -206,15 +253,17 @@ const formattedQuizDate = (dateString) => {
   font-weight: 600;
   color: #1e293b;
   width: 80px;
+  flex-shrink: 0;
 }
 
 .filter-section .form-row input,
 .filter-section .form-row select {
   flex-grow: 1;
-  padding: 0.5rem;
+  padding: 0.75rem;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: 8px;
   max-width: 300px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .quiz-list {
@@ -228,10 +277,68 @@ const formattedQuizDate = (dateString) => {
   align-items: center;
   padding: 1rem;
   border-bottom: 1px solid #e2e8f0;
+  transition: background-color 0.2s;
+}
+
+.quiz-list li:hover {
+  background-color: #f8fafc;
 }
 
 .quiz-list li:last-child {
   border-bottom: none;
+}
+
+.quiz-list li span {
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+  border: none;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.blue-button {
+  background-color: #3b82f6;
+}
+
+.blue-button:hover {
+  background-color: #2563eb;
+}
+
+.red-button {
+  background-color: #ef4444;
+}
+
+.red-button:hover {
+  background-color: #dc2626;
+}
+
+.delete-button {
+  padding: 0.75rem;
+  background-color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-button:hover {
+  background-color: #dc2626;
 }
 
 .table-container {
@@ -242,36 +349,27 @@ table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 1rem;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 th, td {
   text-align: center;
-  padding: 0.75rem 0.5rem;
+  padding: 1rem 0.5rem;
   border-bottom: 1px solid #e2e8f0;
 }
 
 thead th {
-  background-color: #f8fafc;
+  background-color: #e2e8f0;
   color: #1e293b;
   font-weight: 600;
   white-space: nowrap;
 }
 
-tbody tr:nth-child(odd) {
+tbody tr:nth-child(even) {
   background-color: #f1f5f9;
 }
 
-button {
-  padding: 0.75rem 1.5rem;
-  border-radius: 6px;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  transition: background-color 0.2s, box-shadow 0.2s;
-  border: none;
-}
-
-.blue-button { background-color: #3b82f6; }
-.red-button { background-color: #ef4444; }
 .mt-4 { margin-top: 1rem; }
 </style>
