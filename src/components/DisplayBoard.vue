@@ -6,10 +6,8 @@
       <h2 v-else>Čekám na aktivní kvíz...</h2>
     </header>
     
-    <div v-if="currentQuizInstance && currentQuizInstance.revealed_index === 0" class="results-placeholder">
-      <div class="tenor-gif-container">
-        <div class="tenor-gif-embed" data-postid="22805949" data-share-method="host" data-aspect-ratio="1" data-width="100%"></div>
-      </div>
+    <div v-if="currentQuizInstance && currentQuizInstance.revealed_index === 0" class="waiting-animation">
+      <div class="waiting-animation-question">?</div>
       <p>Výsledky se brzy zobrazí...</p>
     </div>
 
@@ -192,20 +190,39 @@ const getRankEmoji = (index) => {
   color: #64748b;
 }
 
-.results-placeholder {
+.waiting-animation {
   text-align: center;
   margin-top: 5rem;
 }
 
-.results-placeholder p {
+.waiting-animation p {
   font-size: 2rem;
   color: #94a3b8;
+  margin-top: 2rem;
 }
 
-.tenor-gif-container {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1rem;
+.waiting-animation-question {
+  display: inline-block;
+  font-size: 10rem;
+  font-weight: bold;
+  color: #14532d; /* Změna barvy na tmavě zelenou */
+  text-shadow: 0 0 10px rgba(20, 83, 45, 0.5), 0 0 20px rgba(20, 83, 45, 0.3); /* Změna barvy stínu na tmavě zelenou */
+  animation: spinAndPulse 4s infinite ease-in-out;
+}
+
+@keyframes spinAndPulse {
+  0% {
+    transform: rotateY(0deg) scale(1);
+    text-shadow: 0 0 10px rgba(20, 83, 45, 0.5), 0 0 20px rgba(20, 83, 45, 0.3);
+  }
+  50% {
+    transform: rotateY(180deg) scale(1.1);
+    text-shadow: 0 0 20px rgba(20, 83, 45, 0.7), 0 0 40px rgba(20, 83, 45, 0.5);
+  }
+  100% {
+    transform: rotateY(360deg) scale(1);
+    text-shadow: 0 0 10px rgba(20, 83, 45, 0.5), 0 0 20px rgba(20, 83, 45, 0.3);
+  }
 }
 
 .results-section {

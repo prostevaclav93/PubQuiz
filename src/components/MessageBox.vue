@@ -3,6 +3,7 @@
     <div class="message-box-container">
       <div class="message-box-header">
         <h3 class="message-box-title">{{ title }}</h3>
+        <span class="message-box-close" @click="cancel">&times;</span>
       </div>
       <div class="message-box-body">
         <p>{{ message }}</p>
@@ -100,12 +101,29 @@ export default {
   color: white;
   padding: 1rem;
   border-bottom: 1px solid #e2e8f0;
+  position: relative; /* Přidáno pro správné pozicování "x" */
 }
 
 .message-box-title {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
+  padding-right: 2rem; /* Aby se titulek nepřekrýval s "x" */
+}
+
+.message-box-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 1rem;
+  font-size: 2rem;
+  line-height: 1;
+  color: white;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.message-box-close:hover {
+  color: #a0aec0;
 }
 
 .message-box-body {

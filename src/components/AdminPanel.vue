@@ -69,10 +69,14 @@
           </tbody>
         </table>
       </div>
-
-      <button @click="startQuiz" :disabled="quizTeams.length === 0" class="green-button large-button">
-        Začít kvíz!
-      </button>
+      <div class="control-buttons">
+        <button @click="startQuiz" :disabled="quizTeams.length === 0" class="green-button large-button">
+          Začít kvíz!
+        </button>
+        <button @click="cancelQuizPreparation" class="red-button large-button">
+          Zrušit přípravu kvízu
+        </button>
+      </div>
     </section>
     
     <section id="control" v-else-if="isQuizStarted" class="admin-section">
@@ -94,7 +98,7 @@
           </div>
         </div>
         <div class="right-buttons">
-          <button @click="finishQuiz" class="red-button control-button">Ukončit kvíz</button>
+          <button @click="handleFinishQuiz" class="orange-button control-button">Ukončit kvíz</button>
         </div>
       </div>
 
@@ -406,7 +410,13 @@ const removeTeamFromQuiz = async (quizTeamId) => {
   const { error: deleteScoresError } = await supabase.from('scores').delete().eq('quiz_team_id', quizTeamId);
   const { error: deleteTeamError } = await supabase.from('quiz_teams').delete().eq('id', quizTeamId);
 
-  if (deleteScoresError || deleteTeamError) console.error('Error removing team from quiz:', deleteScoresError || deleteTeamError);
+  if (deleteScoresError || deleteTeamError) {
+    console.error('Error removing team from quiz:', deleteScoresError || deleteTeamError);
+  } else {
+    // Okamžitá aktualizace lokálního stavu
+    quizTeams.value = quizTeams.value.filter(team => team.id !== quizTeamId);
+    if (messageBoxRef.value) messageBoxRef.value.showMessage('Tým byl úspěšně odebrán.');
+  }
 };
 
 const startQuiz = async () => {
@@ -486,10 +496,51 @@ const resetDisplay = async () => {
   if (error) console.error('Error resetting display:', error);
 };
 
-const finishQuiz = async () => {
+const cancelQuizPreparation = async () => {
   if (!currentQuizInstance.value) return;
 
-  if (await messageBoxRef.value.showConfirm('Opravdu chcete ukončit tento kvíz a uložit ho do historie? Tato akce ho skryje z aktivního panelu.')) {
+  const confirmation = await messageBoxRef.value.showConfirm(
+    'Opravdu chcete zrušit přípravu kvízu? Tato akce smaže celou instanci a všechny přiřazené týmy!'
+  );
+  if (!confirmation) return;
+
+  // Smazání quiz_teams (a s nimi i skóre díky kaskádě)
+  const { error: deleteTeamsError } = await supabase
+    .from('quiz_teams')
+    .delete()
+    .eq('quiz_instance_id', currentQuizInstance.value.id);
+
+  if (deleteTeamsError) {
+    console.error('Chyba při mazání týmů kvízu:', deleteTeamsError);
+    if (messageBoxRef.value) messageBoxRef.value.showMessage('Chyba při rušení přípravy kvízu.');
+    return;
+  }
+
+  // Smazání samotné instance kvízu
+  const { error: deleteInstanceError } = await supabase
+    .from('quiz_instances')
+    .delete()
+    .eq('id', currentQuizInstance.value.id);
+
+  if (deleteInstanceError) {
+    console.error('Chyba při mazání instance kvízu:', deleteInstanceError);
+    if (messageBoxRef.value) messageBoxRef.value.showMessage('Chyba při rušení přípravy kvízu.');
+  } else {
+    currentQuizInstance.value = null;
+    if (messageBoxRef.value) messageBoxRef.value.showMessage('Příprava kvízu byla úspěšně zrušena.');
+  }
+};
+
+const handleFinishQuiz = async () => {
+  if (!currentQuizInstance.value) return;
+  
+  // První dialog pro rozhodnutí "Uložit" vs. "Smazat"
+  const save = await messageBoxRef.value.showConfirm(
+    'Chcete uložit výsledky kvízu do historie? (Stiskem Potvrdit uložíte, stiskem Zrušit je smažete bez uložení)'
+  );
+  
+  if (save) {
+    // Uložit a ukončit
     const { error: updateError } = await supabase
       .from('quiz_instances')
       .update({ is_completed: true })
@@ -497,11 +548,48 @@ const finishQuiz = async () => {
 
     if (updateError) {
       console.error('Error finishing quiz:', updateError);
+      if (messageBoxRef.value) messageBoxRef.value.showMessage('Chyba při ukládání kvízu.');
     } else {
       currentQuizInstance.value = null;
+      if (messageBoxRef.value) messageBoxRef.value.showMessage('Kvíz byl úspěšně uložen do historie.');
+    }
+  } else {
+    // Přechod k druhému, důraznějšímu potvrzení
+    const confirmDelete = await messageBoxRef.value.showConfirm('Opravdu chcete smazat výsledky? Tato akce je nevratná.');
+    if (confirmDelete) {
+      // Smazat bez uložení
+      // Smazání quiz_teams (a s nimi i skóre díky kaskádě)
+      const { error: deleteTeamsError } = await supabase
+        .from('quiz_teams')
+        .delete()
+        .eq('quiz_instance_id', currentQuizInstance.value.id);
+
+      if (deleteTeamsError) {
+        console.error('Chyba při mazání týmů kvízu:', deleteTeamsError);
+        if (messageBoxRef.value) messageBoxRef.value.showMessage('Chyba při mazání kvízu.');
+        return;
+      }
+
+      // Smazání samotné instance kvízu
+      const { error: deleteInstanceError } = await supabase
+        .from('quiz_instances')
+        .delete()
+        .eq('id', currentQuizInstance.value.id);
+
+      if (deleteInstanceError) {
+        console.error('Chyba při mazání instance kvízu:', deleteInstanceError);
+        if (messageBoxRef.value) messageBoxRef.value.showMessage('Chyba při mazání kvízu.');
+      } else {
+        currentQuizInstance.value = null;
+        if (messageBoxRef.value) messageBoxRef.value.showMessage('Kvíz byl úspěšně smazán bez uložení.');
+      }
+    } else {
+      // Uživatel zrušil smazání, nic se neděje
+      if (messageBoxRef.value) messageBoxRef.value.showMessage('Operace zrušena.');
     }
   }
 };
+
 
 const getScoreValue = (quizTeamId, roundNum, type) => {
   const localScore = localScores.value?.[quizTeamId]?.[roundNum]?.[type];
@@ -867,5 +955,12 @@ tr:hover .remove-team-btn {
   background-color: #e2e8f0;
   border-color: #94a3b8;
   cursor: not-allowed;
+}
+
+.control-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: flex-start;
 }
 </style>
