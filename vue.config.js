@@ -19,7 +19,13 @@ module.exports = defineConfig({
       entry: 'src/main-history.js',
       template: 'public/quiz-history.html',
       filename: 'quiz-history.html',
-      title: ' Historie kvízů',
+      title: 'Historie kvízů',
+    },
+      reservations: {
+      entry: 'src/main-reservations.js',
+      template: 'public/reservations.html',
+      filename: 'reservations.html',
+      title: 'Rezervace na kvíz',
     },
   },
 });

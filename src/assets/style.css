@@ -1,88 +1,406 @@
-@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Patrick+Hand+SC&display=swap');
+/* ======================================= */
+/* Globální styly a fonty                  */
+/* ======================================= */
 
-body {
-  font-family: "Patrick Hand SC", cursive;
-  font-weight: 400;
-  font-style: normal;
-  background-color: #f0fdf4; /* světlounce zelené pozadí */
-  color: #0f172a; /* tmavý text */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+
+:root {
+  --primary-color: #21a366;      /* Zelená pro hlavní akce */
+  --primary-hover-color: #1a8a54;
+  --secondary-color: #4b5563;    /* Tmavě šedá pro doplňkové akce */
+  --secondary-hover-color: #374151;
+  --success-color: #21a366;      /* Stejná zelená pro úspěch */
+  --success-hover-color: #1a8a54;
+  --danger-color: #ef4444;       /* Červená pro nebezpečné akce */
+  --danger-hover-color: #dc2626;
+  --warning-color: #f59e0b;      /* Zlatá/medová pro upozornění a zvýraznění */
+  --warning-hover-color: #d97706;
+  --info-color: #3b82f6;         /* Modrá pro informace */
+  --info-hover-color: #2563eb;
+  
+  --background-color: #f4f7f6;
+  --card-background: #ffffff;
+  --text-color-dark: #1f2937;
+  --text-color-light: #f9fafb;
+  --border-color: #e5e7eb;
+  --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --font-family: 'Roboto', sans-serif;
 }
 
-h1 {
-  color: #14532d; /* lesní zelená */
+* {
+  box-sizing: border-box;
 }
 
-input[type="text"], input[type="number"] {
-  padding: 0.4rem;
-  margin-right: 0.5rem;
-  margin-bottom: 0.5rem;
-  width: 200px;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
+body, html {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  background-color: var(--background-color);
+  color: var(--text-color-dark);
 }
 
-button {
-  padding: 0.5rem 1rem;
-  background-color: #14532d; /* lesní zelená */
-  color: white;
+#app, #admin-app, #reservation-app, #display-app, #history-app {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 2rem 1rem;
+  box-sizing: border-box;
+}
+
+/* ======================================= */
+/* Základní komponenty (Layout, Karty)     */
+/* ======================================= */
+
+.container {
+  width: 100%;
+  max-width: 900px;
+}
+
+.card {
+  background: var(--card-background);
+  border-radius: 12px;
+  box-shadow: var(--box-shadow);
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.header h1 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--primary-color);
+}
+
+.header p {
+  font-size: 1rem;
+  color: var(--secondary-color);
+  margin-top: 0.5rem;
+}
+
+.title-container {
+  text-align: center;
+  flex-grow: 1;
+}
+
+/* ======================================= */
+/* Tlačítka a formuláře                    */
+/* ======================================= */
+
+.button {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  border-radius: 8px;
   border: none;
-  margin: 0.5rem 0;
   cursor: pointer;
-  border-radius: 5px;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.2s, transform 0.1s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
-button:hover {
-  background-color: #3ba673; /* jemnější zelená */
+.button:hover {
+  transform: translateY(-2px);
 }
 
-#ranking {
-  font-size: 1.5rem;
+.button:disabled {
+  background-color: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
 }
 
-table {
+.primary-button {
+  background-color: var(--primary-color);
+  color: var(--text-color-light);
+}
+.primary-button:hover { background-color: var(--primary-hover-color); }
+
+.secondary-button {
+  background-color: var(--secondary-color);
+  color: var(--text-color-light);
+}
+.secondary-button:hover { background-color: var(--secondary-hover-color); }
+
+.success-button {
+  background-color: var(--success-color);
+  color: var(--text-color-light);
+}
+.success-button:hover { background-color: var(--success-hover-color); }
+
+.danger-button {
+  background-color: var(--danger-color);
+  color: var(--text-color-light);
+}
+.danger-button:hover { background-color: var(--danger-hover-color); }
+
+.info-button {
+  background-color: var(--info-color);
+  color: var(--text-color-light);
+}
+.info-button:hover { background-color: var(--info-hover-color); }
+
+.warning-button {
+  background-color: var(--warning-color);
+  color: var(--text-color-dark);
+}
+.warning-button:hover { background-color: var(--warning-hover-color); }
+
+.small-button {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+.large-button {
+  padding: 1rem 2rem;
+  font-size: 1.125rem;
+}
+
+.input, .select {
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #fafafb;
+}
+
+.input:focus, .select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(33, 163, 102, 0.25);
+}
+
+.select {
+  appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg fill="%234b5563" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
+  background-repeat: no-repeat;
+  background-position-x: calc(100% - 10px);
+  background-position-y: 50%;
+  padding-right: 2.5rem;
+}
+
+.form-field {
+  margin-bottom: 1.5rem;
+}
+
+.form-field label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.input-group {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.input-group .button {
+  flex-shrink: 0;
+}
+
+/* ======================================= */
+/* Tabulky                                 */
+/* ======================================= */
+
+.data-table {
   width: 100%;
   border-collapse: collapse;
-  background: white;
+  margin-top: 1.5rem;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-th, td {
+.data-table th, .data-table td {
+  border: 1px solid var(--border-color);
+  padding: 1rem;
+  text-align: left;
+}
+
+.data-table th {
+  background-color: #eef2ff;
+  font-weight: 500;
+}
+
+.data-table tbody tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+.data-table td {
+  vertical-align: middle;
+}
+
+.highlight-column {
+  background-color: #fef9c3 !important;
+}
+
+/* ======================================= */
+/* Modální okna                            */
+/* ======================================= */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.modal-content {
+  background-color: var(--card-background);
+  padding: 2rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  box-shadow: var(--box-shadow);
+  position: relative;
+  transform: scale(1);
+  animation: scaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--secondary-color);
+  transition: color 0.2s;
+}
+
+.close-button:hover {
+  color: var(--danger-color);
+}
+
+/* ======================================= */
+/* Pomocné utility                         */
+/* ======================================= */
+
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.flex-center { display: flex; justify-content: center; align-items: center; }
+.flex-gap-1 { gap: 0.5rem; }
+.flex-gap-2 { gap: 1rem; }
+.flex-gap-3 { gap: 1.5rem; }
+.flex-col { flex-direction: column; }
+
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
+.mt-4 { margin-top: 2rem; }
+.mt-5 { margin-top: 2.5rem; }
+
+.text-center { text-align: center; }
+.text-small { font-size: 0.875rem; }
+.text-italic { font-style: italic; }
+.text-muted { color: #6c757d; }
+
+.score-input {
+  width: 60px;
   text-align: center;
-  padding: 0.6rem;
+  padding: 0.5rem;
 }
 
-th {
-  background-color: #14532d; /* lesní zelená */
+.bonus-button {
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #9ca3af;
+  transition: all 0.2s;
+}
+
+.bonus-button.active {
+  background-color: var(--warning-color);
+  border-color: var(--warning-color);
+  color: var(--text-color-dark);
+}
+
+/* ======================================= */
+/* MessageBox (notifikační okno)           */
+/* ======================================= */
+
+.message-box-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.message {
+  display: flex;
+  align-items: center;
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   color: white;
+  width: 300px;
+  animation: fadein 0.5s, fadeout 0.5s 2.5s forwards;
+  font-size: 0.95rem;
 }
 
-tr:nth-child(even) {
-  background-color: #ecfdf5; /* jemná zelenobílá */
+.message .icon {
+  font-size: 1.5rem;
+  margin-right: 15px;
 }
 
-/* ✨ Zvýraznění aktuálního kola */
-.current-round-header {
-  background-color: #f39c12 !important; /* sytá oranžová */
-  color: white !important;
+.message-success { background-color: var(--success-color); }
+.message-error { background-color: var(--danger-color); }
+.message-info { background-color: var(--info-color); }
+.message-warning { background-color: var(--warning-color); }
+.message-warning .icon { color: var(--text-color-dark); }
+
+@keyframes fadein {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
-.current-round-cell {
-  background-color: #f7dc6f !important; /* světle zlatá */
-  font-weight: bold;
-}
-
-/* +1 štítek */
-.plus-one {
-  background-color: #14532d; /* tmavá lesní zelená */
-  color: white;
-  font-weight: bold;
-  padding: 3px 6px;
-  border-radius: 5px;
-  display: inline-block;
-  margin-left: 5px;
-  transition: background-color 0.3s ease;
-}
-
-.plus-one:hover {
-  background-color: #3ba673; /* světlejší zelená na hover */
+@keyframes fadeout {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
 }

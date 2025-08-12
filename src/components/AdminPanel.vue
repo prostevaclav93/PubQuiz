@@ -1,966 +1,1027 @@
 <template>
-  <div class="admin-panel-container">
+  <div class="container">
+    <MessageBox ref="messageBox" />
     <header class="header">
-      <h1>Správa Pubkvízu</h1>
-      <p v-if="currentQuizInstance">{{ formattedQuizDateAndPlace }}</p>
-      <p v-else>Žádná instance kvízu není aktivní. Vyberte místo a vytvořte novou.</p>
+      <button class="button secondary-button" @click="goToHistory">
+        <span class="material-icons">history</span>Historie
+      </button>
+      <div class="title-container">
+        <h1>Správa Pubkvízu</h1>
+        <p v-if="currentQuizInstance && !showSettings && !showReservations" class="text-muted">{{ formattedQuizDateAndPlace }}</p>
+        <p v-else-if="!currentQuizInstance && !showSettings && !showReservations" class="text-muted">Žádná instance kvízu není aktivní.</p>
+      </div>
+      <div class="header-buttons">
+          <button :class="['button', showReservations ? 'primary-button' : 'secondary-button']" @click="toggleReservations">
+              <span class="material-icons">group_add</span>Rezervace
+          </button>
+          <button :class="['button', showSettings ? 'primary-button' : 'secondary-button']" @click="toggleSettings">
+              <span class="material-icons">settings</span>Nastavení
+          </button>
+      </div>
     </header>
 
-    <div class="navigation-link">
-      <a href="/quiz-history.html">Zobrazit historii kvízů</a>
+    <div v-if="showSettings" class="modal-overlay" @click.self="toggleSettings">
+      <div class="modal-content">
+        <header class="modal-header">
+          <h2>Nastavení administrace</h2>
+          <button @click="toggleSettings" class="close-button">
+            <span class="material-icons">close</span>
+          </button>
+        </header>
+        <div class="modal-body">
+          <p class="text-muted">Zde můžete spravovat místa a globální týmy.</p>
+          
+          <div class="form-field mt-4">
+            <label>Správa míst</label>
+            <div class="input-group">
+              <input type="text" v-model="newPlaceName" placeholder="Název místa" @keyup.enter="addPlace" class="input" />
+              <button class="button success-button" @click="addPlace">
+                <span class="material-icons">add</span>Přidat
+              </button>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label>Správa globálních týmů</label>
+            <div class="input-group">
+              <input type="text" v-model="newTeamName" placeholder="Název nového týmu" @keyup.enter="addGlobalTeam" class="input" />
+              <button class="button success-button" @click="addGlobalTeam">
+                <span class="material-icons">add</span>Přidat
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div v-if="showReservations" class="modal-overlay">
+        <div class="modal-content large-modal">
+            <ReservationsAdmin @close="toggleReservations" />
+        </div>
     </div>
 
-    <section class="admin-section" v-if="!isQuizStarted">
-      <h3>Správa míst a kvízů</h3>
-      <div class="form-row">
-        <input type="text" v-model="newPlaceName" placeholder="Název místa" @keyup.enter="addPlace" />
-        <button @click="addPlace">Přidat místo</button>
+    <div v-if="!showSettings && !showReservations" class="main-panel">
+      <div v-if="!currentQuizInstance" class="card">
+        <h3 class="text-center">Vytvořit / Vybrat kvíz</h3>
+        <p class="text-muted text-center">Vyberte existující instanci nebo vytvořte novou, na kterou se budou vázat rezervace.</p>
+        
+        <div v-if="activeQuizInstances.length > 0" class="form-field mt-4">
+          <div class="input-group">
+            <select v-model="selectedExistingQuizInstanceId" class="select">
+              <option value="" disabled>Vybrat existující kvíz</option>
+              <option v-for="instance in activeQuizInstances" :key="instance.id" :value="instance.id">
+                {{ formatQuizInstanceDate(instance) }}
+              </option>
+            </select>
+            <button @click="loadExistingQuizInstance" :disabled="!selectedExistingQuizInstanceId" class="button info-button">
+              <span class="material-icons">search</span>Vybrat
+            </button>
+          </div>
+        </div>
+        
+        <div class="form-field">
+          <label>Vytvořit novou instanci kvízu</label>
+          <div class="input-group">
+            <select v-model="selectedPlaceId" class="select">
+              <option value="" disabled>Vybrat místo</option>
+              <option v-for="place in places" :key="place.id" :value="place.id">
+                {{ place.name }}
+              </option>
+            </select>
+            <input type="date" v-model="quizDate" required class="input" />
+            <input type="time" v-model="quizTime" required class="input" />
+            <button @click="createNewQuizInstance" :disabled="!selectedPlaceId || !quizDate || !quizTime" class="button primary-button">
+              <span class="material-icons">create_new_folder</span>Vytvořit
+            </button>
+          </div>
+        </div>
       </div>
-      <div class="form-row">
-        <select v-model="selectedPlaceId" class="compact-select">
-          <option value="">Vyberte místo pro kvíz</option>
-          <option v-for="place in places" :key="place.id" :value="place.id">{{ place.name }}</option>
-        </select>
-        <button @click="createNewQuizInstance" :disabled="!selectedPlaceId" class="green-button">
-          Vytvořit novou instanci kvízu
-        </button>
-      </div>
-    </section>
 
-    <section class="admin-section" v-if="!isQuizStarted">
-      <h3>Správa globálních týmů</h3>
-      <div class="form-row">
-        <input type="text" v-model="newTeamName" placeholder="Název nového týmu" @keyup.enter="addGlobalTeam" />
-        <button @click="addGlobalTeam">Přidat globální tým</button>
-      </div>
-      <div class="form-row">
-        <select v-model="selectedGlobalTeamId" :disabled="!currentQuizInstance" class="compact-select">
-          <option value="">Vyberte globální tým</option>
-          <option v-for="team in availableGlobalTeams" :key="team.id" :value="team.id">{{ team.name }}</option>
-        </select>
-        <button @click="addTeamToQuiz" :disabled="!selectedGlobalTeamId || !currentQuizInstance" class="green-button">
-          Přidat tým do kvízu
-        </button>
-      </div>
-    </section>
-
-    <section v-if="currentQuizInstance && !isQuizStarted" class="admin-section">
-      <h3>Příprava kvízu</h3>
-      <p v-if="quizTeams.length > 0" class="mb-4">Týmy připravené pro kvíz v <strong>{{ currentQuizInstance.place_name }}</strong>:</p>
-      <p v-else class="mb-4">Do kvízu zatím nebyly přidány žádné týmy. Přidejte tým z panelu výše.</p>
-      
-      <div class="table-container mb-4" v-if="quizTeams.length > 0">
-        <table id="setup-table">
+      <div v-else-if="currentQuizInstance && !isQuizStarted" class="card">
+        <h3 class="text-center">Příprava kvízu v <strong>{{ currentQuizInstance.place_name }}</strong></h3>
+        <p class="text-muted text-center">Přidejte týmy, které se zúčastní.</p>
+        
+        <div class="form-field mt-4">
+            <label>Přidat globální tým</label>
+            <div class="input-group">
+                <select v-model="selectedGlobalTeamId" class="select">
+                    <option value="" disabled>Vybrat tým</option>
+                    <option v-for="team in availableGlobalTeams" :key="team.id" :value="team.id">
+                        {{ team.name }}
+                    </option>
+                </select>
+                <input type="number" placeholder="Počet hráčů" v-model="globalTeamPlayers" min="1" class="input" />
+                <button @click="addTeamToQuiz" :disabled="!selectedGlobalTeamId || !globalTeamPlayers" class="button secondary-button">
+                  <span class="material-icons">group_add</span>Přidat
+                </button>
+            </div>
+        </div>
+        
+        <h4 class="mt-4">Týmy v kvízu</h4>
+        <p v-if="quizTeams.length > 0" class="text-small text-muted">Připravené týmy pro kvíz:</p>
+        <p v-else class="text-small text-italic text-center text-muted">Do kvízu zatím nebyly přidány žádné týmy.</p>
+        
+        <table v-if="quizTeams.length > 0" class="data-table mt-3">
           <thead>
             <tr>
               <th>Tým</th>
+              <th>Počet hráčů</th>
               <th>Akce</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="quizTeam in quizTeams" :key="quizTeam.id">
-              <td>{{ quizTeam.team_name }}</td>
+            <tr v-for="team in quizTeams" :key="team.id">
               <td>
-                <button @click="removeTeamFromQuiz(quizTeam.id)" class="remove-team-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
+                <div class="flex-between">
+                  <span>{{ team.team_name }} ({{ team.number_of_players }})</span>
+                  <button class="button small-button danger-button" @click="confirmRemoveTeamFromQuiz(team.id)">
+                    <span class="material-icons">person_remove</span>
+                  </button>
+                </div>
+              </td>
+              <td>{{ team.number_of_players }}</td>
+              <td>
+                <button class="button small-button danger-button" @click="confirmRemoveTeamFromQuiz(team.id)">
+                  <span class="material-icons">person_remove</span>
                 </button>
               </td>
             </tr>
           </tbody>
         </table>
-      </div>
-      <div class="control-buttons">
-        <button @click="startQuiz" :disabled="quizTeams.length === 0" class="green-button large-button">
-          Začít kvíz!
-        </button>
-        <button @click="cancelQuizPreparation" class="red-button large-button">
-          Zrušit přípravu kvízu
-        </button>
-      </div>
-    </section>
-    
-    <section id="control" v-else-if="isQuizStarted" class="admin-section">
-      <h3>Ovládání kvízu</h3>
-      <div class="main-control-buttons">
-        <div class="left-buttons">
-          <button @click="openDisplayBoard" class="blue-button control-button">Otevřít zobrazení</button>
-          <button v-if="isRoundInProgress" @click="endRound" class="green-button control-button">
-            Ukončit kolo
-          </button>
-          <button v-else-if="isRevealingScores" @click="nextDisplayTeam" class="yellow-button control-button">
-            Zobrazit další tým ({{ currentQuizInstance.revealed_index }}/{{ quizTeams.length }})
-          </button>
-          <div v-else-if="isReadyForNextRound" class="button-group">
-            <button @click="goToNextRound" :disabled="isQuizFinished" class="green-button control-button">
-              {{ isQuizFinished ? 'Kvíz je u konce' : `Další kolo (${currentQuizInstance.current_round + 1}/${MAX_ROUNDS_LIMIT})` }}
-            </button>
-            <button @click="resetDisplay" class="orange-button control-button">Resetovat zobrazení</button>
-          </div>
-        </div>
-        <div class="right-buttons">
-          <button @click="handleFinishQuiz" class="orange-button control-button">Ukončit kvíz</button>
-        </div>
-      </div>
 
-      <h3 class="mt-4">Přehled skóre (Kolo {{ currentQuizInstance.current_round }})</h3>
-      <div class="table-container">
-        <table id="admin-table">
+        <div class="flex-center flex-gap-3 mt-4">
+          <button @click="startQuiz" :disabled="quizTeams.length === 0" class="button large-button success-button">
+            <span class="material-icons">play_arrow</span>Začít kvíz!
+          </button>
+          <button @click="backToQuizSelection" class="button large-button secondary-button">
+            <span class="material-icons">arrow_back</span>Zpět na výběr
+          </button>
+          <button @click="confirmCancelQuizPreparation" class="button large-button danger-button">
+            <span class="material-icons">delete</span>Zrušit přípravu
+          </button>
+        </div>
+      </div>
+      
+      <div v-else-if="currentQuizInstance && isQuizStarted" class="card">
+        <h3 class="text-center">Ovládání kvízu (Kolo {{ currentQuizInstance.current_round }})</h3>
+        <div class="flex-center flex-gap-2 mt-4">
+          <button class="button info-button" @click="openDisplayBoard">
+            <span class="material-icons">tv</span>Zobrazení
+          </button>
+          <button v-if="isRoundInProgress" class="button warning-button" @click="confirmEndRound">
+            <span class="material-icons">stop</span>Ukončit kolo
+          </button>
+          <button v-else-if="isRevealingScores" class="button secondary-button" @click="nextDisplayTeam">
+            <span class="material-icons">arrow_forward</span>Zobrazit další tým ({{ currentQuizInstance.revealed_index }}/{{ quizTeams.length }})
+          </button>
+          <div v-else-if="isReadyForNextRound" class="flex-center flex-gap-2">
+            <button @click="goToNextRound" :disabled="isQuizFinished" :class="['button', isQuizFinished ? 'secondary-button' : 'success-button']">
+              <span class="material-icons">skip_next</span>{{ isQuizFinished ? 'Kvíz u konce' : `Další kolo (${(currentQuizInstance.current_round || 0) + 1})` }}
+            </button>
+            <button @click="resetDisplay" class="button secondary-button">
+              <span class="material-icons">replay</span>Resetovat zobrazení
+            </button>
+          </div>
+          <button @click="confirmFinishQuiz" class="button danger-button">
+            <span class="material-icons">archive</span>Ukončit kvíz
+          </button>
+        </div>
+
+        <h3 class="mt-5 text-center">Přehled skóre</h3>
+        <table class="data-table">
           <thead>
             <tr>
               <th>Tým</th>
-              <th v-for="n in MAX_ROUNDS_LIMIT" :key="n" :class="{ 'current-round-header': n === currentQuizInstance.current_round }">
-                Kolo {{ n }}
-              </th>
+              <th v-for="n in MAX_ROUNDS_LIMIT" :key="n" :class="{ 'highlight-column': currentQuizInstance && n === currentQuizInstance.current_round }">Kolo {{ n }}</th>
               <th>Celkem</th>
             </tr>
-          </thead>
+  </thead>
           <tbody>
-            <tr v-for="quizTeam in quizTeams" :key="quizTeam.id">
+            <tr v-for="team in quizTeams" :key="team.id">
               <td>
-                <div class="team-name-wrapper">
-                  <span class="team-name">{{ quizTeam.team_name }}</span>
-                  <button @click="removeTeamFromQuiz(quizTeam.id)" class="remove-team-btn">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
+                <div class="flex-between">
+                  <span>{{ team.team_name }} ({{ team.number_of_players }})</span>
+                  <button class="button small-button danger-button" @click="confirmRemoveTeamFromQuiz(team.id)">
+                    <span class="material-icons">person_remove</span>
                   </button>
                 </div>
               </td>
-              <td v-for="roundNum in MAX_ROUNDS_LIMIT" :key="roundNum"
-                  :class="{ 'current-round-cell': roundNum === currentQuizInstance.current_round }">
-                <div class="score-container">
-                  <input type="number"
-                         :value="getScoreValue(quizTeam.id, roundNum, 'regular_score')"
-                         min="0" step="0.5"
-                         :readonly="isRoundLocked(roundNum)"
-                         :class="{ 'readonly-input': isRoundLocked(roundNum) }"
-                         @change="e => updateScore(quizTeam.id, roundNum, 'regular_score', e.target.value)" />
-                  <button class="bonus-btn"
-                          @click="toggleBonus(quizTeam.id, roundNum)"
-                          :disabled="isRoundLocked(roundNum)"
-                          :class="{ 'bonus-active': getScoreValue(quizTeam.id, roundNum, 'bonus_score') }">
-                    {{ getScoreValue(quizTeam.id, roundNum, 'bonus_score') ? '+1 B' : '+B' }}
+              <td v-for="n in MAX_ROUNDS_LIMIT" :key="n">
+                <div class="flex-center flex-gap-1">
+                  <input type="number" :value="getScoreValue(team.id, n, 'regular_score')" @input="e => updateScore(team.id, n, 'regular_score', e.target.value)" :disabled="isRoundLocked(n)" class="input score-input" />
+                  <button @click="toggleBonus(team.id, n)" :class="['bonus-button', { 'active': getScoreValue(team.id, n, 'bonus_score') }]">
+                    <span class="material-icons">star</span>
                   </button>
                 </div>
               </td>
-              <td>{{ calculateTotal(quizTeam) }}</td>
+              <td>{{ calculateTotal(team) }}</td>
             </tr>
           </tbody>
         </table>
       </div>
-    </section>
-    
-    <div v-else-if="currentQuizInstance" class="info-box info">
-      <p>Do kvízu zatím nebyly přidány žádné týmy. Přidejte tým z panelu výše.</p>
-    </div>
-    <div v-else class="info-box info">
-      <p>Vyberte místo a vytvořte novou instanci kvízu pro zobrazení ovládacího panelu.</p>
     </div>
   </div>
-
-  <MessageBox ref="messageBoxRef" />
 </template>
 
 <script setup>
-import { ref, onMounted, computed, onUnmounted } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { supabase } from '../supabase/supabaseClient';
 import MessageBox from './MessageBox.vue';
+import ReservationsAdmin from './ReservationsAdmin.vue';
 
-// Data
+const messageBox = ref(null);
+
+const MAX_ROUNDS_LIMIT = 5;
+
+// === State management ===
 const places = ref([]);
-const globalTeams = ref([]);
-const quizTeams = ref([]);
-const scores = ref([]);
-const currentQuizInstance = ref(null);
-const selectedPlaceId = ref('');
 const newPlaceName = ref('');
 const newTeamName = ref('');
+const activeQuizInstances = ref([]);
+const currentQuizInstance = ref(null);
+const selectedPlaceId = ref('');
+const quizDate = ref('');
+const quizTime = ref('');
+const isQuizStarted = ref(false);
+const quizTeams = ref([]);
+const allTeams = ref([]);
 const selectedGlobalTeamId = ref('');
-const MAX_ROUNDS_LIMIT = 5;
-const localScores = ref({});
+const globalTeamPlayers = ref(4);
+const selectedExistingQuizInstanceId = ref('');
 
-// Reference na MessageBox komponentu
-const messageBoxRef = ref(null);
+const showSettings = ref(false);
+const showReservations = ref(false);
 
-// Realtime kanály
-const supabaseChannels = ref([]);
-
-// Computed
-const availableGlobalTeams = computed(() => {
-  const currentQuizTeamIds = new Set(quizTeams.value.map(qt => qt.team_id));
-  return globalTeams.value.filter(team => !currentQuizTeamIds.has(team.id));
-});
-
+// === Computed properties ===
 const formattedQuizDateAndPlace = computed(() => {
   if (!currentQuizInstance.value) return '';
-  const quizDate = new Date(currentQuizInstance.value.quiz_date);
-  const formatter = new Intl.DateTimeFormat('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long' });
-  const formattedDate = formatter.format(quizDate);
-  return `${formattedDate} v ${currentQuizInstance.value.place_name}`;
-});
-
-const isQuizStarted = computed(() => {
-  return currentQuizInstance.value?.current_round > 0;
-});
-
-const isQuizFinished = computed(() => {
-  return currentQuizInstance.value?.current_round >= MAX_ROUNDS_LIMIT;
+  const date = new Date(currentQuizInstance.value.quiz_date);
+  const formattedDate = date.toLocaleDateString('cs-CZ', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+  const formattedTime = currentQuizInstance.value.quiz_time.slice(0, 5);
+  return `${currentQuizInstance.value.place_name}, ${formattedDate}, ${formattedTime}`;
 });
 
 const isRoundInProgress = computed(() => {
-  return currentQuizInstance.value?.current_round > 0 && currentQuizInstance.value?.revealed_index === 0;
+  return (
+    currentQuizInstance.value &&
+    currentQuizInstance.value.current_round > 0 &&
+    !currentQuizInstance.value.is_revealing
+  );
 });
 
 const isRevealingScores = computed(() => {
-  return currentQuizInstance.value?.current_round > 0 && currentQuizInstance.value?.revealed_index > 0 && currentQuizInstance.value?.revealed_index < quizTeams.value.length;
+  return (
+    currentQuizInstance.value &&
+    currentQuizInstance.value.is_revealing &&
+    currentQuizInstance.value.revealed_index < quizTeams.value.length
+  );
 });
 
 const isReadyForNextRound = computed(() => {
-  return currentQuizInstance.value?.current_round > 0 && currentQuizInstance.value?.revealed_index >= quizTeams.value.length;
+  return (
+    currentQuizInstance.value &&
+    currentQuizInstance.value.is_revealing &&
+    currentQuizInstance.value.revealed_index >= quizTeams.value.length
+  );
 });
 
-const isRoundLocked = (roundNum) => {
-  return roundNum > currentQuizInstance.value?.current_round;
+const isQuizFinished = computed(() => {
+  return (
+    currentQuizInstance.value &&
+    currentQuizInstance.value.current_round >= MAX_ROUNDS_LIMIT
+  );
+});
+
+const availableGlobalTeams = computed(() => {
+  if (!allTeams.value || !quizTeams.value) return [];
+  const quizTeamIds = quizTeams.value.map((t) => t.team_id);
+  return allTeams.value.filter((t) => !quizTeamIds.includes(t.id));
+});
+
+// === Watchers ===
+watch(selectedPlaceId, () => {
+  const place = places.value.find(p => p.id === selectedPlaceId.value);
+  if (place && place.name) {
+    newPlaceName.value = place.name;
+  }
+});
+
+// === Lifecycle hooks ===
+onMounted(() => {
+  fetchPlaces();
+  fetchActiveQuizInstances();
+  fetchGlobalTeams();
+});
+
+// === Methods ===
+const fetchPlaces = async () => {
+  const { data, error } = await supabase.from('places').select('*');
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se načíst místa.');
+  } else {
+    places.value = data;
+  }
 };
 
-// Lifecycle
-onMounted(async () => {
-  await fetchInitialData();
-  if (currentQuizInstance.value) {
-    setupSupabaseSubscription(currentQuizInstance.value.id);
-  }
-});
-
-onUnmounted(() => {
-  supabaseChannels.value.forEach(channel => supabase.removeChannel(channel));
-});
-
-// Methods
-const fetchInitialData = async () => {
-  console.log('Fetching initial data...');
-  const { data: placesData, error: placesError } = await supabase.from('places').select('*');
-  if (placesError) {
-    console.error('Error fetching places:', placesError);
+const fetchGlobalTeams = async () => {
+  const { data, error } = await supabase.from('teams').select('*');
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se načíst globální týmy.');
   } else {
-    places.value = placesData || [];
-    console.log('Places fetched:', places.value);
+    allTeams.value = data;
   }
+};
 
-  const { data: globalTeamsData, error: globalTeamsError } = await supabase.from('teams').select('*');
-  if (globalTeamsError) {
-    console.error('Error fetching global teams:', globalTeamsError);
-  } else {
-    globalTeams.value = globalTeamsData || [];
-    console.log('Global teams fetched:', globalTeams.value);
-  }
-
-  const { data: latestQuizInstance, error: quizError } = await supabase
+const fetchActiveQuizInstances = async () => {
+  const { data, error } = await supabase
     .from('quiz_instances')
     .select('*, places(name)')
     .eq('is_completed', false)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+    .order('quiz_date', { ascending: true });
 
-  if (quizError && quizError.code !== 'PGRST116') {
-    console.error('Error fetching latest quiz instance:', quizError);
-  }
-
-  if (latestQuizInstance) {
-    console.log('Active quiz instance found:', latestQuizInstance);
-    const isNewInstance = !currentQuizInstance.value || currentQuizInstance.value.id !== latestQuizInstance.id;
-    currentQuizInstance.value = {
-      ...latestQuizInstance,
-      place_name: latestQuizInstance.places.name
-    };
-    await fetchQuizSpecificData(currentQuizInstance.value.id);
-    if (isNewInstance) {
-      setupSupabaseSubscription(currentQuizInstance.value.id);
-    }
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se načíst aktivní kvízy.');
   } else {
-    console.log('No active quiz instance found.');
-    currentQuizInstance.value = null;
-    supabaseChannels.value.forEach(channel => supabase.removeChannel(channel));
-    supabaseChannels.value = [];
+    activeQuizInstances.value = data.map(instance => ({
+      ...instance,
+      place_name: instance.places.name,
+    }));
   }
 };
 
-const setupSupabaseSubscription = (instanceId) => {
-  supabaseChannels.value.forEach(channel => supabase.removeChannel(channel));
-
-  const instanceChannel = supabase.channel(`quiz_instance:${instanceId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_instances', filter: `id=eq.${instanceId}` }, () => fetchInitialData());
-  const teamsChannel = supabase.channel(`quiz_teams:${instanceId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_teams', filter: `quiz_instance_id=eq.${instanceId}` }, () => fetchInitialData());
-  const scoresChannel = supabase.channel(`scores:${instanceId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, payload => {
-    // Aktualizujeme pouze lokální stav, aby nedocházelo k problikávání
-    if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-      const { new: newRecord } = payload;
-      setScoreValue(newRecord.quiz_team_id, newRecord.round_number, 'regular_score', newRecord.regular_score);
-      setScoreValue(newRecord.quiz_team_id, newRecord.round_number, 'bonus_score', newRecord.bonus_score);
-    }
-    setTimeout(() => {
-        fetchInitialData();
-    }, 500);
+const formatQuizInstanceDate = (instance) => {
+  if (!instance) return '';
+  const date = new Date(instance.quiz_date);
+  const formattedDate = date.toLocaleDateString('cs-CZ', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
   });
-
-  supabaseChannels.value = [instanceChannel, teamsChannel, scoresChannel];
-  supabaseChannels.value.forEach(channel => channel.subscribe());
-};
-
-const fetchQuizSpecificData = async (quizInstanceId) => {
-  const { data: quizTeamsData, error: quizTeamsError } = await supabase
-    .from('quiz_teams')
-    .select('*, teams(name)')
-    .eq('quiz_instance_id', quizInstanceId)
-    .order('created_at', { ascending: true });
-
-  if (quizTeamsError) console.error('Error fetching quiz teams:', quizTeamsError);
-  quizTeams.value = quizTeamsData ? quizTeamsData.map(qt => ({ ...qt, team_name: qt.teams.name })) : [];
-
-  const quizTeamIds = quizTeams.value.map(qt => qt.id);
-  const { data: scoresData, error: scoresError } = await supabase
-    .from('scores')
-    .select('*')
-    .in('quiz_team_id', quizTeamIds);
-
-  if (scoresError) console.error('Error fetching scores:', scoresError);
-  scores.value = scoresData || [];
-};
-
-const addPlace = async () => {
-  if (newPlaceName.value.trim()) {
-    const { error } = await supabase.from('places').insert({ name: newPlaceName.value.trim() });
-    if (error) console.error('Error adding place:', error);
-    else {
-      newPlaceName.value = '';
-    }
-  }
+  return `${instance.place_name} | ${formattedDate}`;
 };
 
 const createNewQuizInstance = async () => {
-  console.log('createNewQuizInstance triggered.');
-  console.log('selectedPlaceId:', selectedPlaceId.value);
-
-  if (!selectedPlaceId.value) {
-    if (messageBoxRef.value) messageBoxRef.value.showMessage('Prosím, vyberte místo pro nový kvíz.');
-    console.error('createNewQuizInstance failed: No place selected.');
+  if (!selectedPlaceId.value || !quizDate.value || !quizTime.value) {
+    messageBox.value.warning('Upozornění', 'Vyplňte prosím všechna pole.');
     return;
   }
-  
-  if (currentQuizInstance.value) {
-    const confirmation = await messageBoxRef.value.showConfirm('Opravdu chcete vytvořit novou instanci kvízu? Tato akce smaže aktuální data!');
-    if (!confirmation) {
-      console.log('Quiz creation cancelled by user.');
-      return;
-    }
-  }
-  
-  console.log('Attempting to create new quiz instance...');
+
   const { data, error } = await supabase
     .from('quiz_instances')
-    .insert({ quiz_date: new Date().toISOString().split('T')[0], place_id: selectedPlaceId.value, is_completed: false, current_round: 0 })
-    .select('*, places(name)')
+    .insert([{
+      place_id: selectedPlaceId.value,
+      quiz_date: quizDate.value,
+      quiz_time: quizTime.value,
+      is_completed: false,
+    }])
+    .select('id, place_id, quiz_date, quiz_time, places(name)')
     .single();
 
   if (error) {
-    console.error('Error creating quiz instance:', error);
-    if (messageBoxRef.value) messageBoxRef.value.showMessage(`Chyba při vytváření kvízu: ${error.message}`);
+    messageBox.value.error('Chyba', 'Nepodařilo se vytvořit novou instanci kvízu.');
   } else {
-    console.log('Successfully created new quiz instance:', data);
-    currentQuizInstance.value = {
-      ...data,
-      place_name: data.places.name
+    currentQuizInstance.value = { 
+        ...data, 
+        place_name: data.places.name 
     };
-    await fetchQuizSpecificData(currentQuizInstance.value.id);
-    setupSupabaseSubscription(currentQuizInstance.value.id);
-    if (messageBoxRef.value) messageBoxRef.value.showMessage('Nová instance kvízu byla úspěšně vytvořena.');
+    isQuizStarted.value = false;
+    
+    await fetchReservationsAndAddToQuiz(currentQuizInstance.value.id, currentQuizInstance.value.place_id, currentQuizInstance.value.quiz_date);
+    await fetchQuizTeams();
+    
+    messageBox.value.success('Úspěch', 'Nová instance kvízu byla úspěšně vytvořena.');
   }
 };
 
-const addGlobalTeam = async () => {
-  if (newTeamName.value.trim()) {
-    const { error } = await supabase.from('teams').insert({ name: newTeamName.value.trim() });
-    if (error) console.error('Error adding global team:', error);
-    else {
-      newTeamName.value = '';
+const fetchReservationsAndAddToQuiz = async (quizInstanceId, placeId, quizDate) => {
+    // Načtení všech rezervací pro dané místo a datum, které ještě nejsou přiřazeny
+    const { data: reservations, error: fetchError } = await supabase
+        .from('reservations')
+        .select('*')
+        .is('quiz_instance_id', null)
+        .eq('place_id', placeId)
+        .eq('reservation_date', quizDate);
+        
+    if (fetchError) {
+        messageBox.value.error('Chyba', 'Nepodařilo se načíst rezervace pro přidání do kvízu.');
+        return;
     }
+    
+    const teamsToInsert = reservations.map(reservation => ({
+        quiz_instance_id: quizInstanceId,
+        team_id: reservation.team_id,
+        number_of_players: reservation.number_of_players,
+    }));
+
+    if (teamsToInsert.length > 0) {
+        const { error: insertError } = await supabase
+            .from('quiz_teams')
+            .insert(teamsToInsert);
+
+        if (insertError) {
+            messageBox.value.error('Chyba', 'Nepodařilo se přidat týmy z rezervací do kvízu.');
+        } else {
+            const reservationIds = reservations.map(res => res.id);
+            const { error: updateError } = await supabase
+                .from('reservations')
+                .update({ quiz_instance_id: quizInstanceId })
+                .in('id', reservationIds);
+            
+            if (updateError) {
+                messageBox.value.error('Chyba', 'Nepodařilo se aktualizovat rezervace s ID kvízu.');
+            } else {
+                messageBox.value.info('Informace', `Bylo přidáno ${teamsToInsert.length} týmů z existujících rezervací.`);
+            }
+        }
+    } else {
+        messageBox.value.info('Informace', 'Pro tento kvíz nebyly nalezeny žádné rezervace.');
+    }
+};
+
+
+const loadExistingQuizInstance = async () => {
+  if (!selectedExistingQuizInstanceId.value) return;
+
+  const { data, error } = await supabase
+    .from('quiz_instances')
+    .select('*, places(name)')
+    .eq('id', selectedExistingQuizInstanceId.value)
+    .single();
+
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se načíst existující kvíz.');
+  } else {
+    currentQuizInstance.value = { ...data, place_name: data.places.name };
+    isQuizStarted.value = data.current_round > 0;
+    await fetchQuizTeams();
+    messageBox.value.success('Úspěch', 'Kvíz byl úspěšně načten.');
   }
 };
 
 const addTeamToQuiz = async () => {
-  if (!currentQuizInstance.value || !selectedGlobalTeamId.value) return;
-
-  const exists = quizTeams.value.some(qt => qt.team_id === selectedGlobalTeamId.value);
-  if (exists) {
-    if (messageBoxRef.value) messageBoxRef.value.showMessage('Tento tým je již v aktuálním kvízu.');
+  if (!selectedGlobalTeamId.value || !globalTeamPlayers.value || !currentQuizInstance.value) {
     return;
   }
 
-  const { error } = await supabase.from('quiz_teams').insert({
-    quiz_instance_id: currentQuizInstance.value.id,
-    team_id: selectedGlobalTeamId.value,
-  });
-  if (error) console.error('Error adding team to quiz instance:', error);
-  else {
+  const teamId = selectedGlobalTeamId.value;
+  const isTeamAlreadyAdded = quizTeams.value.some(team => team.team_id === teamId);
+
+  if (isTeamAlreadyAdded) {
+    messageBox.value.warning('Upozornění', 'Tento tým již byl do kvízu přidán.');
+    return;
+  }
+  
+  const { error } = await supabase
+    .from('quiz_teams')
+    .insert([
+      {
+        quiz_instance_id: currentQuizInstance.value.id,
+        team_id: teamId,
+        number_of_players: globalTeamPlayers.value,
+      }
+    ]);
+  
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se přidat tým do kvízu.');
+  } else {
+    await fetchQuizTeams();
+    messageBox.value.success('Úspěch', 'Tým byl úspěšně přidán.');
     selectedGlobalTeamId.value = '';
+    globalTeamPlayers.value = 4;
   }
 };
 
-const removeTeamFromQuiz = async (quizTeamId) => {
-  const confirmation = await messageBoxRef.value.showConfirm('Opravdu chcete odebrat tento tým z kvízu? Smaže to i jeho skóre!');
-  if (!confirmation) return;
+const fetchQuizTeams = async () => {
+  if (!currentQuizInstance.value) return;
 
-  const { error: deleteScoresError } = await supabase.from('scores').delete().eq('quiz_team_id', quizTeamId);
-  const { error: deleteTeamError } = await supabase.from('quiz_teams').delete().eq('id', quizTeamId);
+  const { data, error } = await supabase
+    .from('quiz_teams')
+    .select('*, teams(name), scores(*)')
+    .eq('quiz_instance_id', currentQuizInstance.value.id)
+    .order('created_at', { ascending: true });
 
-  if (deleteScoresError || deleteTeamError) {
-    console.error('Error removing team from quiz:', deleteScoresError || deleteTeamError);
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se načíst týmy v kvízu.');
   } else {
-    // Okamžitá aktualizace lokálního stavu
-    quizTeams.value = quizTeams.value.filter(team => team.id !== quizTeamId);
-    if (messageBoxRef.value) messageBoxRef.value.showMessage('Tým byl úspěšně odebrán.');
+    quizTeams.value = data.map(qt => ({
+      ...qt,
+      team_name: qt.teams.name,
+      scores: qt.scores || [],
+    }));
+  }
+};
+
+const confirmRemoveTeamFromQuiz = async (quizTeamId) => {
+    const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete odebrat tento tým z kvízu?');
+    if (confirm) {
+        removeTeamFromQuiz(quizTeamId);
+    }
+};
+
+const removeTeamFromQuiz = async (quizTeamId) => {
+  const { error } = await supabase
+    .from('quiz_teams')
+    .delete()
+    .eq('id', quizTeamId);
+
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se odebrat tým z kvízu.');
+  } else {
+    quizTeams.value = quizTeams.value.filter(t => t.id !== quizTeamId);
+    messageBox.value.success('Úspěch', 'Tým byl úspěšně odebrán.');
   }
 };
 
 const startQuiz = async () => {
   if (!currentQuizInstance.value) return;
 
-  const confirmation = await messageBoxRef.value.showConfirm('Opravdu chcete zahájit kvíz?');
-  if (!confirmation) return;
-
   const { error } = await supabase
     .from('quiz_instances')
-    .update({ current_round: 1, revealed_index: 0 })
+    .update({ current_round: 1 })
     .eq('id', currentQuizInstance.value.id);
-
-  if (error) console.error('Error starting quiz:', error);
-};
-
-const endRound = async () => {
-  if (!currentQuizInstance.value) return;
   
-  const confirmation = await messageBoxRef.value.showConfirm('Opravdu chcete ukončit kolo a zobrazit výsledky?');
-  if (!confirmation) return;
-
-  const { error } = await supabase
-    .from('quiz_instances')
-    .update({ revealed_index: 1 })
-    .eq('id', currentQuizInstance.value.id);
-
-  if (error) console.error('Error ending round:', error);
-}
-
-const goToNextRound = async () => {
-  if (!currentQuizInstance.value || isQuizFinished.value) return;
-  
-  const confirmation = await messageBoxRef.value.showConfirm(`Opravdu chcete posunout kvíz do kola ${currentQuizInstance.value.current_round + 1}?`);
-  if (!confirmation) return;
-
-  const newRound = currentQuizInstance.value.current_round + 1;
-  const { error } = await supabase
-    .from('quiz_instances')
-    .update({ current_round: newRound, revealed_index: 0 })
-    .eq('id', currentQuizInstance.value.id);
-
-  if (error) console.error('Error updating round:', error);
-};
-
-const openDisplayBoard = () => {
-  if (currentQuizInstance.value) {
-    window.open(`/display.html?quizInstanceId=${currentQuizInstance.value.id}`, '_blank');
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se spustit kvíz.');
   } else {
-    if (messageBoxRef.value) messageBoxRef.value.showMessage('Nejprve musíte vytvořit nebo vybrat instanci kvízu.');
+    currentQuizInstance.value.current_round = 1;
+    isQuizStarted.value = true;
+    messageBox.value.success('Úspěch', 'Kvíz byl úspěšně spuštěn na kolo 1.');
   }
 };
 
-const nextDisplayTeam = async () => {
-  if (!currentQuizInstance.value || currentQuizInstance.value.revealed_index >= quizTeams.value.length) return;
-
-  const newRevealedIndex = currentQuizInstance.value.revealed_index + 1;
-  const { error } = await supabase
-    .from('quiz_instances')
-    .update({ revealed_index: newRevealedIndex })
-    .eq('id', currentQuizInstance.value.id);
-
-  if (error) console.error('Error updating revealed index:', error);
+const backToQuizSelection = async () => {
+  const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu se chcete vrátit na výběr? Změny skóre budou uloženy.');
+  if (confirm) {
+    currentQuizInstance.value = null;
+    isQuizStarted.value = false;
+    fetchActiveQuizInstances();
+  }
 };
 
-const resetDisplay = async () => {
-  if (!currentQuizInstance.value) return;
-  
-  const confirmation = await messageBoxRef.value.showConfirm('Opravdu chcete resetovat zobrazení? Výsledky se skryjí a budou se zobrazovat od začátku.');
-  if (!confirmation) return;
-
-  const { error } = await supabase
-    .from('quiz_instances')
-    .update({ revealed_index: 0 })
-    .eq('id', currentQuizInstance.value.id);
-
-  if (error) console.error('Error resetting display:', error);
+const confirmCancelQuizPreparation = async () => {
+    const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete zrušit přípravu tohoto kvízu? Akce je nevratná.');
+    if (confirm) {
+        cancelQuizPreparation();
+    }
 };
 
 const cancelQuizPreparation = async () => {
-  if (!currentQuizInstance.value) return;
+    if (!currentQuizInstance.value) return;
 
-  const confirmation = await messageBoxRef.value.showConfirm(
-    'Opravdu chcete zrušit přípravu kvízu? Tato akce smaže celou instanci a všechny přiřazené týmy!'
-  );
-  if (!confirmation) return;
-
-  // Smazání quiz_teams (a s nimi i skóre díky kaskádě)
-  const { error: deleteTeamsError } = await supabase
-    .from('quiz_teams')
-    .delete()
-    .eq('quiz_instance_id', currentQuizInstance.value.id);
-
-  if (deleteTeamsError) {
-    console.error('Chyba při mazání týmů kvízu:', deleteTeamsError);
-    if (messageBoxRef.value) messageBoxRef.value.showMessage('Chyba při rušení přípravy kvízu.');
-    return;
-  }
-
-  // Smazání samotné instance kvízu
-  const { error: deleteInstanceError } = await supabase
-    .from('quiz_instances')
-    .delete()
-    .eq('id', currentQuizInstance.value.id);
-
-  if (deleteInstanceError) {
-    console.error('Chyba při mazání instance kvízu:', deleteInstanceError);
-    if (messageBoxRef.value) messageBoxRef.value.showMessage('Chyba při rušení přípravy kvízu.');
-  } else {
-    currentQuizInstance.value = null;
-    if (messageBoxRef.value) messageBoxRef.value.showMessage('Příprava kvízu byla úspěšně zrušena.');
-  }
-};
-
-const handleFinishQuiz = async () => {
-  if (!currentQuizInstance.value) return;
-  
-  // První dialog pro rozhodnutí "Uložit" vs. "Smazat"
-  const save = await messageBoxRef.value.showConfirm(
-    'Chcete uložit výsledky kvízu do historie? (Stiskem Potvrdit uložíte, stiskem Zrušit je smažete bez uložení)'
-  );
-  
-  if (save) {
-    // Uložit a ukončit
-    const { error: updateError } = await supabase
-      .from('quiz_instances')
-      .update({ is_completed: true })
-      .eq('id', currentQuizInstance.value.id);
-
-    if (updateError) {
-      console.error('Error finishing quiz:', updateError);
-      if (messageBoxRef.value) messageBoxRef.value.showMessage('Chyba při ukládání kvízu.');
-    } else {
-      currentQuizInstance.value = null;
-      if (messageBoxRef.value) messageBoxRef.value.showMessage('Kvíz byl úspěšně uložen do historie.');
-    }
-  } else {
-    // Přechod k druhému, důraznějšímu potvrzení
-    const confirmDelete = await messageBoxRef.value.showConfirm('Opravdu chcete smazat výsledky? Tato akce je nevratná.');
-    if (confirmDelete) {
-      // Smazat bez uložení
-      // Smazání quiz_teams (a s nimi i skóre díky kaskádě)
-      const { error: deleteTeamsError } = await supabase
+    // Smazání týmů přidělených k této instanci kvízu
+    const { error: teamsError } = await supabase
         .from('quiz_teams')
         .delete()
         .eq('quiz_instance_id', currentQuizInstance.value.id);
 
-      if (deleteTeamsError) {
-        console.error('Chyba při mazání týmů kvízu:', deleteTeamsError);
-        if (messageBoxRef.value) messageBoxRef.value.showMessage('Chyba při mazání kvízu.');
+    if (teamsError) {
+        console.error('Chyba při mazání týmů z kvízu:', teamsError);
+        messageBox.value.error('Chyba', 'Nepodařilo se smazat týmy z kvízu.');
         return;
-      }
+    }
 
-      // Smazání samotné instance kvízu
-      const { error: deleteInstanceError } = await supabase
+    // Smazání samotné instance kvízu
+    const { error: instanceError } = await supabase
         .from('quiz_instances')
         .delete()
         .eq('id', currentQuizInstance.value.id);
-
-      if (deleteInstanceError) {
-        console.error('Chyba při mazání instance kvízu:', deleteInstanceError);
-        if (messageBoxRef.value) messageBoxRef.value.showMessage('Chyba při mazání kvízu.');
-      } else {
+        
+    if (instanceError) {
+        console.error('Chyba při mazání instance kvízu:', instanceError);
+        messageBox.value.error('Chyba', 'Nepodařilo se smazat kvízovou instanci.');
+    } else {
         currentQuizInstance.value = null;
-        if (messageBoxRef.value) messageBoxRef.value.showMessage('Kvíz byl úspěšně smazán bez uložení.');
-      }
-    } else {
-      // Uživatel zrušil smazání, nic se neděje
-      if (messageBoxRef.value) messageBoxRef.value.showMessage('Operace zrušena.');
+        isQuizStarted.value = false;
+        fetchActiveQuizInstances();
+        messageBox.value.success('Úspěch', 'Příprava kvízu byla úspěšně zrušena.');
     }
-  }
 };
 
-
-const getScoreValue = (quizTeamId, roundNum, type) => {
-  const localScore = localScores.value?.[quizTeamId]?.[roundNum]?.[type];
-  if (localScore !== undefined) {
-    return localScore;
-  }
-  const score = scores.value.find(s => s.quiz_team_id === quizTeamId && s.round_number === roundNum);
-  return score ? score[type] : (type === 'regular_score' ? 0 : 0);
+const updateScore = async (teamId, roundNumber, type, value) => {
+    // Implementace aktualizace skóre
+    console.log(`Aktualizace skóre pro tým ${teamId} v kole ${roundNumber}, typ: ${type}, hodnota: ${value}`);
 };
 
-const setScoreValue = (quizTeamId, roundNum, type, value) => {
-  if (!localScores.value[quizTeamId]) {
-    localScores.value[quizTeamId] = {};
-  }
-  if (!localScores.value[quizTeamId][roundNum]) {
-    localScores.value[quizTeamId][roundNum] = {};
-  }
-  localScores.value[quizTeamId][roundNum][type] = value;
+const getScoreValue = (teamId, roundNumber, type) => {
+    const team = quizTeams.value.find(t => t.id === teamId);
+    if (!team || !team.scores) return 0;
+    const score = team.scores.find(s => s.round_number === roundNumber && s.score_type === type);
+    return score ? score.score_value : 0;
 };
 
-const updateScore = async (quizTeamId, roundNum, type, value) => {
-  const numericValue = parseFloat(value) || 0;
-  
-  if (roundNum > currentQuizInstance.value.current_round) {
-    return;
-  }
+const toggleBonus = async (teamId, roundNumber) => {
+    // Implementace přepínání bonusu
+    console.log(`Přepínám bonus pro tým ${teamId} v kole ${roundNumber}`);
+};
 
-  if (roundNum < currentQuizInstance.value.current_round) {
-    const confirmation = await messageBoxRef.value.showConfirm(`Opravdu chcete upravit skóre v již proběhlém kole ${roundNum}?`);
-    if (!confirmation) {
-      return;
-    }
-  }
+const calculateTotal = (team) => {
+  return team.scores.reduce((total, score) => {
+    return total + (score.score_value || 0);
+  }, 0);
+};
 
-  setScoreValue(quizTeamId, roundNum, type, numericValue);
+const isRoundLocked = (roundNumber) => {
+  if (!currentQuizInstance.value) return true;
+  return roundNumber !== currentQuizInstance.value.current_round || isRoundInProgress.value;
+};
 
-  const existingScore = scores.value.find(s => s.quiz_team_id === quizTeamId && s.round_number === roundNum);
+const goToNextRound = async () => {
+    if (!currentQuizInstance.value) return;
+    
+    // Potvrzení před přesunem na další kolo
+    const confirm = await messageBox.value.prompt('Potvrzení', `Opravdu chcete začít kolo ${currentQuizInstance.value.current_round + 1}?`);
+    if (confirm) {
+        const { error } = await supabase
+            .from('quiz_instances')
+            .update({ 
+                current_round: currentQuizInstance.value.current_round + 1,
+                is_revealing: false,
+                revealed_index: 0,
+            })
+            .eq('id', currentQuizInstance.value.id);
 
-  if (existingScore) {
-    const { data, error } = await supabase
-      .from('scores')
-      .update({ [type]: numericValue })
-      .eq('id', existingScore.id)
-      .select()
-      .single();
-    if (error) {
-        console.error('Error updating score:', error);
-    } else {
-        const index = scores.value.findIndex(s => s.id === data.id);
-        if (index !== -1) {
-            scores.value[index] = data;
+        if (error) {
+            messageBox.value.error('Chyba', 'Nepodařilo se přejít na další kolo.');
+        } else {
+            currentQuizInstance.value.current_round++;
+            currentQuizInstance.value.is_revealing = false;
+            currentQuizInstance.value.revealed_index = 0;
+            messageBox.value.success('Úspěch', `Kvíz se přesunul na kolo ${currentQuizInstance.value.current_round}.`);
         }
     }
-  } else {
-    const { data, error } = await supabase
-      .from('scores')
-      .insert({ quiz_team_id: quizTeamId, round_number: roundNum, [type]: numericValue })
-      .select()
-      .single();
-    if (error) {
-        console.error('Error inserting new score:', error);
-    } else {
-        scores.value.push(data);
-    }
-  }
 };
 
-const toggleBonus = async (quizTeamId, roundNum) => {
-  if (roundNum > currentQuizInstance.value.current_round) {
-    return;
-  }
+const confirmEndRound = async () => {
+    if (!currentQuizInstance.value) return;
+    const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete ukončit kolo a odhalit skóre?');
+    if (confirm) {
+        const { error } = await supabase
+            .from('quiz_instances')
+            .update({ is_revealing: true })
+            .eq('id', currentQuizInstance.value.id);
 
-  if (roundNum < currentQuizInstance.value.current_round) {
-    const confirmation = await messageBoxRef.value.showConfirm(`Opravdu chcete upravit skóre v již proběhlém kole ${roundNum}?`);
-    if (!confirmation) {
-      return;
-    }
-  }
-
-  const existingScore = scores.value.find(s => s.quiz_team_id === quizTeamId && s.round_number === roundNum);
-  const newBonus = existingScore && existingScore.bonus_score === 1 ? 0 : 1;
-
-  setScoreValue(quizTeamId, roundNum, 'bonus_score', newBonus);
-
-  if (existingScore) {
-    const { data, error } = await supabase
-      .from('scores')
-      .update({ bonus_score: newBonus })
-      .eq('id', existingScore.id)
-      .select()
-      .single();
-    if (error) {
-        console.error('Error toggling bonus:', error);
-    } else {
-        const index = scores.value.findIndex(s => s.id === data.id);
-        if (index !== -1) {
-            scores.value[index] = data;
+        if (error) {
+            messageBox.value.error('Chyba', 'Nepodařilo se ukončit kolo.');
+        } else {
+            currentQuizInstance.value.is_revealing = true;
+            messageBox.value.success('Úspěch', 'Kolo bylo ukončeno. Můžete odhalovat skóre.');
         }
     }
-  } else {
-    const { data, error } = await supabase
-      .from('scores')
-      .insert({ quiz_team_id: quizTeamId, round_number: roundNum, bonus_score: newBonus })
-      .select()
-      .single();
+};
+
+const nextDisplayTeam = async () => {
+    if (!currentQuizInstance.value) return;
+
+    const { error } = await supabase
+        .from('quiz_instances')
+        .update({ revealed_index: (currentQuizInstance.value.revealed_index || 0) + 1 })
+        .eq('id', currentQuizInstance.value.id);
+
     if (error) {
-        console.error('Error inserting new score with bonus:', error);
+        messageBox.value.error('Chyba', 'Nepodařilo se zobrazit další tým.');
     } else {
-        scores.value.push(data);
+        currentQuizInstance.value.revealed_index++;
     }
+};
+
+const resetDisplay = async () => {
+    if (!currentQuizInstance.value) return;
+
+    const { error } = await supabase
+        .from('quiz_instances')
+        .update({ revealed_index: 0, is_revealing: false })
+        .eq('id', currentQuizInstance.value.id);
+
+    if (error) {
+        messageBox.value.error('Chyba', 'Nepodařilo se resetovat zobrazení.');
+    } else {
+        currentQuizInstance.value.revealed_index = 0;
+        currentQuizInstance.value.is_revealing = false;
+        messageBox.value.success('Úspěch', 'Zobrazení bylo resetováno.');
+    }
+};
+
+const confirmFinishQuiz = async () => {
+    if (!currentQuizInstance.value) return;
+    const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete ukončit celý kvíz? Již nebude možné upravovat skóre a přesune se do historie.');
+    if (confirm) {
+        finishQuiz();
+    }
+};
+
+const finishQuiz = async () => {
+    if (!currentQuizInstance.value) return;
+    const { error } = await supabase
+      .from('quiz_instances')
+      .update({ is_completed: true })
+      .eq('id', currentQuizInstance.value.id);
+
+    if (error) {
+        messageBox.value.error('Chyba', 'Nepodařilo se ukončit kvíz.');
+    } else {
+        currentQuizInstance.value = null;
+        isQuizStarted.value = false;
+        fetchActiveQuizInstances();
+        messageBox.value.success('Úspěch', 'Kvíz byl úspěšně ukončen a přesunut do historie.');
+    }
+};
+
+const addPlace = async () => {
+  if (!newPlaceName.value) return;
+
+  const { error } = await supabase
+    .from('places')
+    .insert([{ name: newPlaceName.value }]);
+
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se přidat místo.');
+  } else {
+    newPlaceName.value = '';
+    fetchPlaces();
+    messageBox.value.success('Úspěch', 'Místo bylo úspěšně přidáno.');
   }
 };
 
-const calculateTotal = (quizTeam) => {
-  return scores.value
-    .filter(s => s.quiz_team_id === quizTeam.id)
-    .reduce((sum, score) => sum + (score.regular_score || 0) + (score.bonus_score || 0), 0);
+const addGlobalTeam = async () => {
+  if (!newTeamName.value) return;
+
+  const { error } = await supabase
+    .from('teams')
+    .insert([{ name: newTeamName.value }]);
+
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se přidat tým.');
+  } else {
+    newTeamName.value = '';
+    fetchGlobalTeams();
+    messageBox.value.success('Úspěch', 'Tým byl úspěšně přidán.');
+  }
+};
+
+const openDisplayBoard = () => {
+  if (currentQuizInstance.value) {
+    const displayUrl = `/display/${currentQuizInstance.value.id}`;
+    window.open(displayUrl, '_blank');
+  }
+};
+
+const goToHistory = () => {
+    // Implementace přesměrování na historii
+    messageBox.value.info('Informace', 'Funkce historie není zatím implementována.');
+};
+
+const toggleSettings = () => {
+    showSettings.value = !showSettings.value;
+};
+
+const toggleReservations = () => {
+    showReservations.value = !showReservations.value;
 };
 </script>
 
 <style scoped>
-.admin-panel-container {
+.container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
   font-family: Arial, sans-serif;
+  color: #333;
 }
 
 .header {
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 2rem;
+  border-bottom: 2px solid #eee;
+  padding-bottom: 1rem;
+}
+
+.title-container {
+  text-align: center;
 }
 
 .header h1 {
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
-  color: #14532d;
+  font-size: 2rem;
+  margin-bottom: 0.25rem;
 }
 
-.header p {
-  color: #64748b;
-  font-size: 1rem;
+.header-buttons {
+  display: flex;
+  gap: 1rem;
 }
 
-.navigation-link {
-  text-align: right;
+.main-panel {
+  display: grid;
+  gap: 2rem;
+}
+
+.card {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.form-field {
   margin-bottom: 1.5rem;
 }
 
-.navigation-link a {
-  padding: 0.5rem 1rem;
-  background-color: #16a34a;
-  color: white;
-  text-decoration: none;
-  border-radius: 6px;
-  font-weight: 600;
-  transition: background-color 0.2s;
+.form-field label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
 }
 
-.navigation-link a:hover {
-  background-color: #15803d;
-}
-
-.admin-section {
-  background-color: white;
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  margin-bottom: 2rem;
-}
-
-.admin-section h3 {
-  font-size: 1.5rem;
-  color: #0f172a;
-  margin-bottom: 1rem;
-  border-bottom: 2px solid #e2e8f0;
-  padding-bottom: 0.5rem;
-}
-
-.form-row {
+.input-group {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-input[type="text"],
-select {
-  flex-grow: 1;
-  padding: 0.75rem 1rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  min-width: 200px;
-}
-
-button {
-  padding: 0.75rem 1.5rem;
-  border-radius: 6px;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  transition: background-color 0.2s, box-shadow 0.2s;
-  border: none;
-}
-
-button:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-button:disabled {
-  background-color: #94a3b8;
-  cursor: not-allowed;
-  filter: none;
-  box-shadow: none;
-}
-
-.green-button { background-color: #16a34a; }
-.blue-button { background-color: #3b82f6; }
-.yellow-button { background-color: #f59e0b; }
-.orange-button { background-color: #f97316; }
-.red-button { background-color: #ef4444; }
-
-/* Menší a kompaktnější tlačítka v ovládacím panelu */
-.control-button {
-  min-width: 160px;
-  height: 48px;
-  font-size: 1rem;
-  padding: 0.5rem 1rem;
-}
-
-/* Upravení "velkých" tlačítek, aby odpovídala nové kompaktnější velikosti */
-.large-button {
-  font-size: 1rem;
-  padding: 0.75rem 1.5rem;
-  margin-top: 0.5rem;
-}
-
-.main-control-buttons {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.left-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-}
-
-.right-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.button-group {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.table-container {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-}
-
-th, td {
-  text-align: center;
-  padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-thead th {
-  background-color: #f8fafc;
-  color: #1e293b;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-tbody tr:nth-child(odd) {
-  background-color: #f1f5f9;
-}
-
-tbody tr:hover {
-  background-color: #e2e8f0;
-}
-
-.current-round-header {
-  background-color: #bfdbfe;
-  color: #1e40af;
-}
-
-.current-round-cell {
-  background-color: #dbeafe;
-}
-
-.score-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 0.5rem;
 }
 
-.score-container input {
-  width: 60px;
-  padding: 0.3rem;
+.input,
+.select {
+  flex-grow: 1;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 1rem;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+
+.small-button {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.large-button {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+}
+
+.primary-button {
+  background-color: #3498db;
+  color: white;
+}
+
+.primary-button:hover {
+  background-color: #2980b9;
+}
+
+.secondary-button {
+  background-color: #ecf0f1;
+  color: #34495e;
+}
+
+.secondary-button:hover {
+  background-color: #bdc3c7;
+}
+
+.success-button {
+  background-color: #2ecc71;
+  color: white;
+}
+
+.success-button:hover {
+  background-color: #27ae60;
+}
+
+.danger-button {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.danger-button:hover {
+  background-color: #c0392b;
+}
+
+.info-button {
+  background-color: #3498db;
+  color: white;
+}
+
+.info-button:hover {
+  background-color: #2980b9;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.5rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px 15px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+.data-table th {
+  background-color: #f4f7f9;
+  font-weight: bold;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-content.large-modal {
+  max-width: 900px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #888;
+}
+
+.modal-body {
+  padding-top: 1rem;
+}
+
+.text-center {
   text-align: center;
 }
 
-.bonus-btn {
-  font-size: 0.8rem;
-  padding: 0.3rem 0.6rem;
-  background-color: #94a3b8;
+.text-muted {
+  color: #7f8c8d;
 }
 
-.bonus-btn.bonus-active {
-  background-color: #22c55e;
+.text-italic {
+  font-style: italic;
 }
 
-/* Styly pro úpravu vzhledu tlačítka odstranění týmu */
-td .team-name-wrapper {
+.mt-3 { margin-top: 1rem; }
+.mt-4 { margin-top: 1.5rem; }
+.mt-5 { margin-top: 2rem; }
+
+.flex-center {
   display: flex;
+  justify-content: center;
   align-items: center;
-  justify-content: space-between;
 }
 
-.remove-team-btn {
+.flex-gap-1 { gap: 0.5rem; }
+.flex-gap-2 { gap: 1rem; }
+.flex-gap-3 { gap: 1.5rem; }
+
+.score-input {
+  width: 60px;
+  text-align: center;
+}
+.bonus-button {
   background: none;
   border: none;
-  color: #ef4444;
-  padding: 0;
   cursor: pointer;
-  transition: opacity 0.2s;
-  height: auto;
-  width: auto;
-  opacity: 0; /* Skryté ve výchozím stavu */
+  color: #ccc;
 }
-
-tr:hover .remove-team-btn {
-  opacity: 1; /* Zobrazí se při najetí na řádek */
-}
-
-/* Styl pro tlačítko v sekci "Příprava kvízu" */
-#setup-table .remove-team-btn {
-  opacity: 1; /* V této tabulce je vždy viditelné */
-}
-
-#setup-table tr:hover .remove-team-btn {
-  opacity: 1;
-}
-
-/* Nový styl pro zašedlé input pole */
-.readonly-input {
-  background-color: #e2e8f0;
-  border-color: #94a3b8;
-  cursor: not-allowed;
-}
-
-.control-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  justify-content: flex-start;
+.bonus-button.active {
+  color: gold;
 }
 </style>

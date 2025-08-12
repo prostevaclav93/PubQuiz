@@ -17,6 +17,10 @@
     {
       "src": "/",
       "dest": "/index.html"
+    },
+        {
+      "src": "/",
+      "dest": "/reservations.html"
     }
   ]
 }
