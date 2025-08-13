@@ -161,7 +161,7 @@
           <button class="button info-button" @click="openDisplayBoard">
             <span class="material-icons">tv</span>Zobrazení
           </button>
-          <button v-if="isRoundInProgress" class="button warning-button" @click="confirmEndRound">
+          <button v-if="isRoundInProgress" :disabled="!canEndCurrentRound" class="button warning-button" @click="confirmEndRound" :title="!canEndCurrentRound ? 'Nejprve zadejte skóre pro všechny týmy v aktuálním kole' : ''">
             <span class="material-icons">stop</span>Ukončit kolo
           </button>
           <button v-else-if="isRevealingScores" class="button secondary-button" @click="nextDisplayTeam">
@@ -264,6 +264,19 @@ const isRoundInProgress = computed(() => {
     currentQuizInstance.value.current_round > 0 &&
     !currentQuizInstance.value.is_revealing
   );
+});
+
+const canEndCurrentRound = computed(() => {
+  if (!currentQuizInstance.value || !isRoundInProgress.value) return false;
+  
+  const currentRound = currentQuizInstance.value.current_round;
+  
+  // Check if all teams have at least some score entered for the current round
+  return quizTeams.value.every(team => {
+    const roundScore = team.scores.find(s => s.round_number === currentRound);
+    // Consider round ready if regular_score exists (even if 0) or bonus_score exists
+    return roundScore && (roundScore.regular_score !== null && roundScore.regular_score !== undefined);
+  });
 });
 
 const isRevealingScores = computed(() => {
@@ -594,13 +607,13 @@ const cancelQuizPreparation = async () => {
 };
 
 const updateScore = async (teamId, roundNumber, type, value) => {
-    const numericValue = parseFloat(value) || 0;
+    const numericValue = type === 'bonus_score' ? (parseFloat(value) || 0) : parseFloat(value) || 0;
     
     try {
         // Check if score already exists
         const { data: existingScore, error: fetchError } = await supabase
             .from('scores')
-            .select('id')
+            .select('id, regular_score, bonus_score')
             .eq('quiz_team_id', teamId)
             .eq('round_number', roundNumber)
             .single();
@@ -618,14 +631,17 @@ const updateScore = async (teamId, roundNumber, type, value) => {
                 
             if (updateError) throw updateError;
         } else {
-            // Create new score record
+            // Create new score record with both fields initialized
+            const newScoreData = {
+                quiz_team_id: teamId,
+                round_number: roundNumber,
+                regular_score: type === 'regular_score' ? numericValue : 0,
+                bonus_score: type === 'bonus_score' ? numericValue : 0
+            };
+            
             const { error: insertError } = await supabase
                 .from('scores')
-                .insert({
-                    quiz_team_id: teamId,
-                    round_number: roundNumber,
-                    [type]: numericValue
-                });
+                .insert(newScoreData);
                 
             if (insertError) throw insertError;
         }
@@ -664,7 +680,8 @@ const calculateTotal = (team) => {
 
 const isRoundLocked = (roundNumber) => {
   if (!currentQuizInstance.value) return true;
-  return roundNumber !== currentQuizInstance.value.current_round;
+  // Allow editing current round and all previous rounds, but not future rounds
+  return roundNumber > currentQuizInstance.value.current_round;
 };
 
 const goToNextRound = async () => {
@@ -1096,7 +1113,13 @@ const toggleReservations = () => {
   color: gold;
 }
 
-.bonus-button:hover {
-  background-color: #f0f0f0;
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button:disabled:hover {
+  background-color: inherit;
+  transform: none;
 }
 </style>
