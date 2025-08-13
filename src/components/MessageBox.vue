@@ -119,14 +119,15 @@ defineExpose({
 }
 
 .message-box {
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(20, 83, 45, 0.3);
   width: 90%;
   max-width: 450px;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   animation: fadeInScale 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 1px solid rgba(20, 83, 45, 0.1);
 }
 
 @keyframes fadeInScale {
@@ -141,8 +142,8 @@ defineExpose({
 }
 
 .message-box-header {
-  padding: 1rem 1.5rem;
-  color: white;
+  padding: 1.5rem 2rem;
+  color: #fdf6e3;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -151,28 +152,37 @@ defineExpose({
 
 .message-box-header h3 {
   margin: 0;
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 1.25rem;
+  font-weight: 700;
 }
 
-.header-success { background-color: #28a745; }
-.header-error { background-color: #dc3545; }
-.header-warning { background-color: #ffc107; color: #333; }
-.header-info { background-color: #17a2b8; }
+.header-success { 
+  background: linear-gradient(135deg, #2f855a 0%, #38a169 100%);
+}
+.header-error { 
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+}
+.header-warning { 
+  background: linear-gradient(135deg, #fcbf49 0%, #f59e0b 100%);
+  color: #4a3621;
+}
+.header-info { 
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+}
 
 .close-button {
   background: none;
   border: none;
-  color: white;
+  color: inherit;
   font-size: 2rem;
   line-height: 1;
   cursor: pointer;
   padding: 0;
   position: absolute;
-  top: 0.5rem;
-  right: 1rem;
+  top: 1rem;
+  right: 1.5rem;
   opacity: 0.8;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s ease;
 }
 
 .close-button:hover {
@@ -180,17 +190,19 @@ defineExpose({
 }
 
 .message-box-body {
-  padding: 1.5rem;
-  color: #34495e;
+  padding: 2rem;
+  color: #4a3621;
   line-height: 1.5;
+  background: #fdf6e3;
 }
 
 .message-box-body p {
   margin: 0;
+  font-size: 1rem;
 }
 
 .input-form {
-  margin-top: 1rem;
+  margin-top: 1.5rem;
 }
 
 .form-group {
@@ -199,52 +211,98 @@ defineExpose({
 
 .form-group label {
   display: block;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+  color: #4a3621;
 }
 
 .form-control {
   width: 100%;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid #ccc;
-  border-radius: 5px;
+  padding: 0.875rem 1rem;
+  border: 2px solid rgba(107, 114, 128, 0.2);
+  border-radius: 12px;
   font-size: 1rem;
   box-sizing: border-box;
-}
-
-.message-box-footer {
-  padding: 1rem 1.5rem;
-  border-top: 1px solid #eee;
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-}
-
-.button {
-  padding: 0.6rem 1.2rem;
-  border-radius: 5px;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
+  background-color: #ffffff;
+  color: #4a3621;
   transition: all 0.2s ease;
 }
 
+.form-control:focus {
+  outline: none;
+  border-color: #14532d;
+  box-shadow: 0 0 0 3px rgba(20, 83, 45, 0.1);
+}
+
+.message-box-footer {
+  padding: 1.5rem 2rem;
+  border-top: 1px solid rgba(20, 83, 45, 0.1);
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  background: #ffffff;
+}
+
+.button {
+  padding: 0.875rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  letter-spacing: 0.25px;
+}
+
 .primary-button {
-  background-color: #3498db;
-  color: white;
+  background: linear-gradient(135deg, #14532d 0%, #2f855a 100%);
+  color: #fdf6e3;
+  box-shadow: 0 4px 16px rgba(20, 83, 45, 0.2);
 }
 
 .primary-button:hover {
-  background-color: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(20, 83, 45, 0.3);
+  background: linear-gradient(135deg, #0f3f21 0%, #276749 100%);
 }
 
 .secondary-button {
-  background-color: #ecf0f1;
+  background: #ecf0f1;
   color: #34495e;
+  border: 1px solid #bdc3c7;
 }
 
 .secondary-button:hover {
-  background-color: #bdc3c7;
+  background: #dcdde1;
+  transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .message-box {
+    margin: 1rem;
+    max-width: none;
+  }
+  
+  .message-box-header {
+    padding: 1.25rem 1.5rem;
+  }
+  
+  .message-box-body {
+    padding: 1.5rem;
+  }
+  
+  .message-box-footer {
+    padding: 1.25rem 1.5rem;
+    flex-direction: column;
+  }
+  
+  .button {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>
