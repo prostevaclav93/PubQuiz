@@ -131,14 +131,7 @@
           </thead>
           <tbody>
             <tr v-for="team in quizTeams" :key="team.id">
-              <td>
-                <div class="flex-between">
-                  <span>{{ team.team_name }} ({{ team.number_of_players }})</span>
-                  <button class="button small-button danger-button" @click="confirmRemoveTeamFromQuiz(team.id)">
-                    <span class="material-icons">person_remove</span>
-                  </button>
-                </div>
-              </td>
+              <td>{{ team.team_name }}</td>
               <td>{{ team.number_of_players }}</td>
               <td>
                 <button class="button small-button danger-button" @click="confirmRemoveTeamFromQuiz(team.id)">
@@ -195,7 +188,7 @@
               <th v-for="n in MAX_ROUNDS_LIMIT" :key="n" :class="{ 'highlight-column': currentQuizInstance && n === currentQuizInstance.current_round }">Kolo {{ n }}</th>
               <th>Celkem</th>
             </tr>
-  </thead>
+          </thead>
           <tbody>
             <tr v-for="team in quizTeams" :key="team.id">
               <td>
@@ -377,6 +370,9 @@ const createNewQuizInstance = async () => {
       quiz_date: quizDate.value,
       quiz_time: quizTime.value,
       is_completed: false,
+      current_round: 0,
+      is_revealing: false,
+      revealed_index: 0
     }])
     .select('id, place_id, quiz_date, quiz_time, places(name)')
     .single();
@@ -386,62 +382,56 @@ const createNewQuizInstance = async () => {
   } else {
     currentQuizInstance.value = { 
         ...data, 
-        place_name: data.places.name 
+        place_name: data.places.name,
+        current_round: 0,
+        is_revealing: false,
+        revealed_index: 0
     };
     isQuizStarted.value = false;
     
-    await fetchReservationsAndAddToQuiz(currentQuizInstance.value.id, currentQuizInstance.value.place_id, currentQuizInstance.value.quiz_date);
+    // Load teams from reservations
+    await fetchReservationsAndAddToQuiz(currentQuizInstance.value.id);
     await fetchQuizTeams();
     
     messageBox.value.success('Úspěch', 'Nová instance kvízu byla úspěšně vytvořena.');
   }
 };
 
-const fetchReservationsAndAddToQuiz = async (quizInstanceId, placeId, quizDate) => {
-    // Načtení všech rezervací pro dané místo a datum, které ještě nejsou přiřazeny
+const fetchReservationsAndAddToQuiz = async (quizInstanceId) => {
+    // Load reservations that are already linked to this quiz instance
     const { data: reservations, error: fetchError } = await supabase
         .from('reservations')
-        .select('*')
-        .is('quiz_instance_id', null)
-        .eq('place_id', placeId)
-        .eq('reservation_date', quizDate);
+        .select('team_id, number_of_players')
+        .eq('quiz_instance_id', quizInstanceId);
         
     if (fetchError) {
         messageBox.value.error('Chyba', 'Nepodařilo se načíst rezervace pro přidání do kvízu.');
         return;
     }
     
+    if (reservations.length === 0) {
+        messageBox.value.info('Informace', 'Pro tento kvíz nebyly nalezeny žádné rezervace.');
+        return;
+    }
+
+    // Convert reservations to quiz_teams
     const teamsToInsert = reservations.map(reservation => ({
         quiz_instance_id: quizInstanceId,
         team_id: reservation.team_id,
         number_of_players: reservation.number_of_players,
     }));
 
-    if (teamsToInsert.length > 0) {
-        const { error: insertError } = await supabase
-            .from('quiz_teams')
-            .insert(teamsToInsert);
+    const { error: insertError } = await supabase
+        .from('quiz_teams')
+        .insert(teamsToInsert);
 
-        if (insertError) {
-            messageBox.value.error('Chyba', 'Nepodařilo se přidat týmy z rezervací do kvízu.');
-        } else {
-            const reservationIds = reservations.map(res => res.id);
-            const { error: updateError } = await supabase
-                .from('reservations')
-                .update({ quiz_instance_id: quizInstanceId })
-                .in('id', reservationIds);
-            
-            if (updateError) {
-                messageBox.value.error('Chyba', 'Nepodařilo se aktualizovat rezervace s ID kvízu.');
-            } else {
-                messageBox.value.info('Informace', `Bylo přidáno ${teamsToInsert.length} týmů z existujících rezervací.`);
-            }
-        }
+    if (insertError) {
+        console.error('Insert error:', insertError);
+        messageBox.value.error('Chyba', 'Nepodařilo se přidat týmy z rezervací do kvízu.');
     } else {
-        messageBox.value.info('Informace', 'Pro tento kvíz nebyly nalezeny žádné rezervace.');
+        messageBox.value.info('Informace', `Bylo přidáno ${teamsToInsert.length} týmů z existujících rezervací.`);
     }
 };
-
 
 const loadExistingQuizInstance = async () => {
   if (!selectedExistingQuizInstanceId.value) return;
@@ -457,6 +447,8 @@ const loadExistingQuizInstance = async () => {
   } else {
     currentQuizInstance.value = { ...data, place_name: data.places.name };
     isQuizStarted.value = data.current_round > 0;
+    
+    // Load teams from quiz_teams table (not reservations)
     await fetchQuizTeams();
     messageBox.value.success('Úspěch', 'Kvíz byl úspěšně načten.');
   }
@@ -602,31 +594,77 @@ const cancelQuizPreparation = async () => {
 };
 
 const updateScore = async (teamId, roundNumber, type, value) => {
-    // Implementace aktualizace skóre
-    console.log(`Aktualizace skóre pro tým ${teamId} v kole ${roundNumber}, typ: ${type}, hodnota: ${value}`);
+    const numericValue = parseFloat(value) || 0;
+    
+    try {
+        // Check if score already exists
+        const { data: existingScore, error: fetchError } = await supabase
+            .from('scores')
+            .select('id')
+            .eq('quiz_team_id', teamId)
+            .eq('round_number', roundNumber)
+            .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+            throw fetchError;
+        }
+
+        if (existingScore) {
+            // Update existing score
+            const { error: updateError } = await supabase
+                .from('scores')
+                .update({ [type]: numericValue })
+                .eq('id', existingScore.id);
+                
+            if (updateError) throw updateError;
+        } else {
+            // Create new score record
+            const { error: insertError } = await supabase
+                .from('scores')
+                .insert({
+                    quiz_team_id: teamId,
+                    round_number: roundNumber,
+                    [type]: numericValue
+                });
+                
+            if (insertError) throw insertError;
+        }
+
+        // Refresh the teams data to show updated scores
+        await fetchQuizTeams();
+        
+    } catch (err) {
+        console.error('Error updating score:', err);
+        messageBox.value.error('Chyba', 'Nepodařilo se aktualizovat skóre.');
+    }
 };
 
 const getScoreValue = (teamId, roundNumber, type) => {
     const team = quizTeams.value.find(t => t.id === teamId);
     if (!team || !team.scores) return 0;
-    const score = team.scores.find(s => s.round_number === roundNumber && s.score_type === type);
-    return score ? score.score_value : 0;
+    
+    const score = team.scores.find(s => s.round_number === roundNumber);
+    return score ? (score[type] || 0) : 0;
 };
 
 const toggleBonus = async (teamId, roundNumber) => {
-    // Implementace přepínání bonusu
-    console.log(`Přepínám bonus pro tým ${teamId} v kole ${roundNumber}`);
+    const currentBonus = getScoreValue(teamId, roundNumber, 'bonus_score');
+    const newBonus = currentBonus === 1 ? 0 : 1;
+    
+    await updateScore(teamId, roundNumber, 'bonus_score', newBonus);
 };
 
 const calculateTotal = (team) => {
-  return team.scores.reduce((total, score) => {
-    return total + (score.score_value || 0);
-  }, 0);
+    if (!team.scores || team.scores.length === 0) return 0;
+    
+    return team.scores.reduce((total, score) => {
+        return total + (score.regular_score || 0) + (score.bonus_score || 0);
+    }, 0);
 };
 
 const isRoundLocked = (roundNumber) => {
   if (!currentQuizInstance.value) return true;
-  return roundNumber !== currentQuizInstance.value.current_round || isRoundInProgress.value;
+  return roundNumber !== currentQuizInstance.value.current_round;
 };
 
 const goToNextRound = async () => {
@@ -661,13 +699,17 @@ const confirmEndRound = async () => {
     if (confirm) {
         const { error } = await supabase
             .from('quiz_instances')
-            .update({ is_revealing: true })
+            .update({ 
+                is_revealing: true,
+                revealed_index: 0  // Reset revealed index when starting to reveal
+            })
             .eq('id', currentQuizInstance.value.id);
 
         if (error) {
             messageBox.value.error('Chyba', 'Nepodařilo se ukončit kolo.');
         } else {
             currentQuizInstance.value.is_revealing = true;
+            currentQuizInstance.value.revealed_index = 0;
             messageBox.value.success('Úspěch', 'Kolo bylo ukončeno. Můžete odhalovat skóre.');
         }
     }
@@ -764,7 +806,7 @@ const addGlobalTeam = async () => {
 
 const openDisplayBoard = () => {
   if (currentQuizInstance.value) {
-    const displayUrl = `/display/${currentQuizInstance.value.id}`;
+    const displayUrl = `/display.html?quizInstanceId=${currentQuizInstance.value.id}`;
     window.open(displayUrl, '_blank');
   }
 };
@@ -918,6 +960,15 @@ const toggleReservations = () => {
   background-color: #2980b9;
 }
 
+.warning-button {
+  background-color: #f39c12;
+  color: white;
+}
+
+.warning-button:hover {
+  background-color: #e67e22;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -934,6 +985,11 @@ const toggleReservations = () => {
 .data-table th {
   background-color: #f4f7f9;
   font-weight: bold;
+}
+
+.highlight-column {
+  background-color: #3498db;
+  color: white;
 }
 
 .modal-overlay {
@@ -997,6 +1053,10 @@ const toggleReservations = () => {
   font-style: italic;
 }
 
+.text-small {
+  font-size: 0.9rem;
+}
+
 .mt-3 { margin-top: 1rem; }
 .mt-4 { margin-top: 1.5rem; }
 .mt-5 { margin-top: 2rem; }
@@ -1004,6 +1064,12 @@ const toggleReservations = () => {
 .flex-center {
   display: flex;
   justify-content: center;
+  align-items: center;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
 }
 
@@ -1015,13 +1081,22 @@ const toggleReservations = () => {
   width: 60px;
   text-align: center;
 }
+
 .bonus-button {
   background: none;
   border: none;
   cursor: pointer;
   color: #ccc;
+  padding: 0.25rem;
+  border-radius: 3px;
+  transition: color 0.2s;
 }
+
 .bonus-button.active {
   color: gold;
+}
+
+.bonus-button:hover {
+  background-color: #f0f0f0;
 }
 </style>
