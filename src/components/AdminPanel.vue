@@ -1710,5 +1710,4 @@ const toggleReservations = () => {
     width: 95%;
     margin: 1rem;
   }
-}
 </style>

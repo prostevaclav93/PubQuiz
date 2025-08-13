@@ -1,73 +1,183 @@
 <template>
-  <div class="reservations-admin-container">
+  <div class="reservations-admin">
+    <MessageBox ref="messageBox" />
+    
+    <!-- Header -->
     <div class="admin-header">
-      <h2>Správa rezervací</h2>
-      <button @click="$emit('close')" class="button secondary-button">
-        <span class="material-icons">close</span> Zavřít
-      </button>
-    </div>
-
-    <div v-if="loading" class="loading-message">Načítám aktivní kvízy...</div>
-
-    <div v-else-if="!selectedQuizInstanceId" class="quiz-instance-list">
-      <h3>Vyberte kvíz k úpravě rezervací</h3>
-      <ul>
-        <li
-          v-for="instance in activeQuizInstances"
-          :key="instance.id"
-          @click="selectQuizInstance(instance)"
-        >
-          <div class="instance-details">
-            <strong>{{ instance.places.name }}</strong>
-            <p>{{ formattedDate(instance.quiz_date) }} v {{ instance.quiz_time.slice(0, 5) }}</p>
+      <div class="header-content">
+        <div class="header-info">
+          <div class="header-icon">
+            <span class="material-icons">group_add</span>
           </div>
-          <button @click.stop="deleteQuizInstance(instance.id)" class="button danger-button small-button">
-            Smazat kvíz
-          </button>
-        </li>
-      </ul>
+          <div>
+            <h2>Správa rezervací</h2>
+            <p>Spravujte rezervace pro aktivní kvízy</p>
+          </div>
+        </div>
+        <button @click="$emit('close')" class="close-button">
+          <span class="material-icons">close</span>
+          <span>Zavřít</span>
+        </button>
+      </div>
     </div>
 
-    <div v-else class="reservation-management">
-      <div class="management-header">
-        <button @click="selectedQuizInstanceId = null" class="button secondary-button small-button">
-          <span class="material-icons">arrow_back</span> Zpět
-        </button>
-        <h3>Rezervace pro {{ selectedQuizInstance.places.name }}</h3>
+    <!-- Loading State -->
+    <div v-if="loading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">Načítám aktivní kvízy...</p>
+    </div>
+
+    <!-- Quiz Selection -->
+    <div v-else-if="!selectedQuizInstanceId" class="content-card">
+      <div class="card-header">
+        <div class="header-icon">
+          <span class="material-icons">quiz</span>
+        </div>
+        <div>
+          <h3>Vyberte kvíz k úpravě rezervací</h3>
+          <p>Zobrazte a upravte rezervace pro vybraný kvíz</p>
+        </div>
       </div>
       
-      <div class="reservations-list-container">
-        <h4>Týmy ({{ selectedQuizReservations.length }})</h4>
-        <ul class="reservations-list">
-          <li v-for="reservation in selectedQuizReservations" :key="reservation.id">
-            <span>{{ reservation.teams.name }} ({{ reservation.number_of_players }} hráčů)</span>
-            <button @click="deleteReservation(reservation.id)" class="button danger-button small-button">
-              <span class="material-icons">delete_forever</span> Odebrat
-            </button>
-          </li>
-        </ul>
-        <p v-if="selectedQuizReservations.length === 0" class="text-muted">Žádné rezervace pro tento kvíz.</p>
-      </div>
-
-      <div class="add-reservation-form">
-        <h4>Přidat nový tým</h4>
-        <form @submit.prevent="addReservation">
-          <div class="input-group">
-            <label for="new-team-name">Název týmu:</label>
-            <input type="text" id="new-team-name" v-model="newTeamName" required />
+      <div class="card-content">
+        <div v-if="activeQuizInstances.length === 0" class="empty-state">
+          <span class="material-icons">event_busy</span>
+          <p>Momentálně nejsou dostupné žádné aktivní kvízy</p>
+        </div>
+        
+        <div v-else class="quiz-grid">
+          <div 
+            v-for="instance in activeQuizInstances"
+            :key="instance.id"
+            @click="selectQuizInstance(instance)"
+            class="quiz-card"
+          >
+            <div class="quiz-info">
+              <h4>{{ instance.places.name }}</h4>
+              <div class="quiz-details">
+                <div class="detail-item">
+                  <span class="material-icons">event</span>
+                  <span>{{ formattedDate(instance.quiz_date) }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="material-icons">schedule</span>
+                  <span>{{ instance.quiz_time.slice(0, 5) }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="material-icons">group</span>
+                  <span>{{ instance.reservations?.length || 0 }} rezervací</span>
+                </div>
+              </div>
+            </div>
+            <div class="quiz-actions">
+              <button @click.stop="deleteQuizInstance(instance.id)" class="button danger small">
+                <span class="material-icons">delete</span>
+                Smazat kvíz
+              </button>
+            </div>
           </div>
-          <div class="input-group">
-            <label for="new-team-players">Počet hráčů:</label>
-            <input type="number" id="new-team-players" v-model="newTeamPlayers" min="1" max="10" required />
-          </div>
-          <button type="submit" class="button green-button">
-            <span class="material-icons">add</span> Přidat tým
-          </button>
-        </form>
+        </div>
       </div>
     </div>
 
-    <MessageBox ref="messageBox" />
+    <!-- Reservation Management -->
+    <div v-else class="content-card">
+      <div class="card-header">
+        <div class="header-info">
+          <button @click="selectedQuizInstanceId = null" class="back-button">
+            <span class="material-icons">arrow_back</span>
+          </button>
+          <div>
+            <h3>Rezervace pro {{ selectedQuizInstance.places.name }}</h3>
+            <p>{{ formattedDate(selectedQuizInstance.quiz_date) }} v {{ selectedQuizInstance.quiz_time.slice(0, 5) }}</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <!-- Current Reservations -->
+        <div class="reservations-section">
+          <div class="section-header">
+            <h4>Aktuální rezervace</h4>
+            <div class="team-count">{{ selectedQuizReservations.length }}</div>
+          </div>
+          
+          <div v-if="selectedQuizReservations.length > 0" class="reservations-table">
+            <div class="table-header">
+              <div class="col-team">Tým</div>
+              <div class="col-players">Hráči</div>
+              <div class="col-actions">Akce</div>
+            </div>
+            <div v-for="reservation in selectedQuizReservations" :key="reservation.id" class="table-row">
+              <div class="col-team">
+                <div class="team-info">
+                  <span class="team-name">{{ reservation.teams.name }}</span>
+                </div>
+              </div>
+              <div class="col-players">
+                <div class="player-count">
+                  <span class="material-icons">person</span>
+                  <span>{{ reservation.number_of_players }}</span>
+                </div>
+              </div>
+              <div class="col-actions">
+                <button @click="deleteReservation(reservation.id)" class="button danger small">
+                  <span class="material-icons">delete_forever</span>
+                  Odebrat
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div v-else class="empty-state">
+            <span class="material-icons">group_off</span>
+            <p>Žádné rezervace pro tento kvíz</p>
+          </div>
+        </div>
+
+        <!-- Add New Team -->
+        <div class="add-team-section">
+          <div class="section-header">
+            <h4>Přidat nový tým</h4>
+          </div>
+          
+          <form @submit.prevent="addReservation" class="add-team-form">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="new-team-name">Název týmu</label>
+                <input 
+                  type="text" 
+                  id="new-team-name" 
+                  v-model="newTeamName" 
+                  required 
+                  placeholder="Zadejte název týmu"
+                  class="text-input"
+                />
+              </div>
+              <div class="form-group">
+                <label for="new-team-players">Počet hráčů</label>
+                <input 
+                  type="number" 
+                  id="new-team-players" 
+                  v-model="newTeamPlayers" 
+                  min="1" 
+                  max="10" 
+                  required 
+                  class="text-input number-input"
+                />
+              </div>
+              <div class="form-group">
+                <label>&nbsp;</label>
+                <button type="submit" class="button primary">
+                  <span class="material-icons">add</span>
+                  Přidat tým
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -186,7 +296,7 @@ const addReservation = async () => {
 };
 
 const deleteQuizInstance = async (quizId) => {
-  const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete Smazat celou instanci kvízu včetně všech rezervací?');
+  const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete smazat celou instanci kvízu včetně všech rezervací?');
   if (confirm) {
     // Smazání rezervací pro danou instanci
     const { error: reservationsError } = await supabase
@@ -226,172 +336,503 @@ onMounted(fetchActiveQuizInstances);
 </script>
 
 <style scoped>
-.reservations-admin-container {
-  padding: 2rem;
-  background-color: #f4f7f9;
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+/* ===== PubQ Reservations Admin Design System ===== */
+.reservations-admin {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fdf6e3;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+/* Admin Header */
 .admin-header {
+  background: linear-gradient(135deg, #14532d 0%, #2f855a 100%);
+  color: #fdf6e3;
+  padding: 1.5rem 2rem;
+  border-radius: 20px 20px 0 0;
+}
+
+.header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 2px solid #e0e6eb;
-  padding-bottom: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 2rem;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.header-icon {
+  background: rgba(252, 191, 73, 0.2);
+  padding: 1rem;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(252, 191, 73, 0.3);
+}
+
+.header-icon .material-icons {
+  font-size: 1.5rem;
+  color: #fcbf49;
 }
 
 .admin-header h2 {
   margin: 0;
-  color: #34495e;
+  font-size: 1.5rem;
+  font-weight: 700;
 }
 
-.button {
-  padding: 0.5rem 1rem;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-weight: 600;
-  display: inline-flex;
+.admin-header p {
+  margin: 0.5rem 0 0 0;
+  opacity: 0.9;
+  font-size: 0.95rem;
+}
+
+.close-button {
+  display: flex;
   align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(253, 246, 227, 0.1);
+  border: 2px solid rgba(253, 246, 227, 0.2);
+  border-radius: 12px;
+  color: #fdf6e3;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.close-button:hover {
+  background: rgba(253, 246, 227, 0.2);
+  border-color: rgba(253, 246, 227, 0.4);
+  transform: translateY(-2px);
+}
+
+.back-button {
+  background: rgba(253, 246, 227, 0.1);
+  border: 2px solid rgba(253, 246, 227, 0.2);
+  border-radius: 8px;
+  color: #fdf6e3;
+  padding: 0.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-button:hover {
+  background: rgba(253, 246, 227, 0.2);
+  border-color: rgba(253, 246, 227, 0.4);
+}
+
+/* Loading */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  min-height: 300px;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(20, 83, 45, 0.1);
+  border-left: 4px solid #14532d;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 1.1rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Content Card */
+.content-card {
+  background: #ffffff;
+  border-radius: 0 0 20px 20px;
+  box-shadow: 0 4px 20px rgba(74, 54, 33, 0.08);
+  border: 1px solid rgba(20, 83, 45, 0.1);
+  border-top: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-header {
+  background: rgba(20, 83, 45, 0.05);
+  padding: 1.5rem 2rem;
+  border-bottom: 2px solid rgba(20, 83, 45, 0.1);
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #14532d;
+}
+
+.card-header p {
+  margin: 0.5rem 0 0 0;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.card-content {
+  padding: 2rem;
+  flex: 1;
+}
+
+/* Quiz Grid */
+.quiz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.quiz-card {
+  background: #fdf6e3;
+  border: 2px solid rgba(20, 83, 45, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.quiz-card:hover {
+  border-color: rgba(20, 83, 45, 0.3);
+  background: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(74, 54, 33, 0.1);
+}
+
+.quiz-info h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #14532d;
+}
+
+.quiz-details {
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
 }
 
-.secondary-button {
-  background-color: #ecf0f1;
-  color: #34495e;
-  border: 1px solid #bdc3c7;
-}
-
-.secondary-button:hover {
-  background-color: #dcdde1;
-}
-
-.danger-button {
-  background-color: #e74c3c;
-  color: white;
-  border: none;
-}
-
-.danger-button:hover {
-  background-color: #c0392b;
-}
-
-.green-button {
-  background-color: #2ecc71;
-  color: white;
-  border: none;
-}
-
-.green-button:hover {
-  background-color: #27ae60;
-}
-
-.small-button {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.8rem;
-}
-
-.quiz-instance-list h3 {
-  color: #34495e;
-  margin-bottom: 1rem;
-}
-
-.quiz-instance-list ul {
-  list-style: none;
-  padding: 0;
-}
-
-.quiz-instance-list li {
-  background: #fff;
-  border: 1px solid #e0e6eb;
-  border-radius: 6px;
-  padding: 1rem;
-  margin-bottom: 1rem;
+.detail-item {
   display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.detail-item .material-icons {
+  font-size: 1rem;
+  color: #14532d;
+}
+
+.quiz-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Sections */
+.reservations-section, .add-team-section {
+  margin-bottom: 2rem;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  transition: box-shadow 0.2s;
-  cursor: pointer;
-}
-
-.quiz-instance-list li:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.instance-details strong {
-  font-size: 1.2rem;
-  color: #2c3e50;
-}
-
-.instance-details p {
-  margin: 0;
-  color: #7f8c8d;
-}
-
-.reservation-management {
-  background: #fff;
-  padding: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-}
-
-.management-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  border-bottom: 1px solid #e0e6eb;
-  padding-bottom: 1rem;
-  margin-bottom: 1rem;
-}
-
-.management-header h3 {
-  margin: 0;
-  color: #34495e;
-}
-
-.reservations-list-container {
   margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid rgba(20, 83, 45, 0.1);
 }
 
-.reservations-list {
-  list-style: none;
-  padding: 0;
+.section-header h4 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #14532d;
 }
 
-.reservations-list li {
-  padding: 0.75rem 0;
-  border-bottom: 1px solid #e0e6eb;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.team-count {
+  background: #14532d;
+  color: #fdf6e3;
+  padding: 0.5rem 0.75rem;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.875rem;
 }
 
-.reservations-list li:last-child {
+/* Tables */
+.reservations-table {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(20, 83, 45, 0.1);
+}
+
+.table-header {
+  background: rgba(20, 83, 45, 0.05);
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  font-weight: 600;
+  color: #14532d;
+  border-bottom: 1px solid rgba(20, 83, 45, 0.1);
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  border-bottom: 1px solid rgba(20, 83, 45, 0.05);
+  transition: background-color 0.2s ease;
+}
+
+.table-row:hover {
+  background: rgba(20, 83, 45, 0.02);
+}
+
+.table-row:last-child {
   border-bottom: none;
 }
 
-.add-reservation-form h4 {
-  margin-top: 0;
-  color: #34495e;
+.table-header > div, .table-row > div {
+  padding: 1rem;
+  display: flex;
+  align-items: center;
 }
 
-.input-group {
-  margin-bottom: 1rem;
+.col-team {
+  justify-content: flex-start;
 }
 
-.input-group label {
-  display: block;
+.col-players, .col-actions {
+  justify-content: center;
+}
+
+.team-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.team-name {
   font-weight: 600;
-  margin-bottom: 0.3rem;
-  color: #34495e;
+  color: #14532d;
+  font-size: 1rem;
 }
 
-.input-group input {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #bdc3c7;
-  border-radius: 4px;
+.player-count {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6b7280;
+}
+
+.player-count .material-icons {
+  font-size: 1rem;
+}
+
+/* Form */
+.add-team-form {
+  background: rgba(20, 83, 45, 0.02);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(20, 83, 45, 0.1);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: 1.5rem;
+  align-items: end;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: #14532d;
+  font-size: 0.95rem;
+}
+
+.text-input {
+  padding: 0.875rem 1rem;
+  border: 2px solid rgba(107, 114, 128, 0.2);
+  border-radius: 12px;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  background-color: #fdf6e3;
+  color: #4a3621;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: #14532d;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(20, 83, 45, 0.1);
+}
+
+.text-input::placeholder {
+  color: #9ca3af;
+}
+
+.number-input {
+  max-width: 100px;
+}
+
+/* Buttons */
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  border-radius: 12px;
+  border: none;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.button.primary {
+  background: linear-gradient(135deg, #14532d 0%, #2f855a 100%);
+  color: #fdf6e3;
+  box-shadow: 0 4px 16px rgba(20, 83, 45, 0.3);
+}
+
+.button.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(20, 83, 45, 0.4);
+}
+
+.button.danger {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: #fdf6e3;
+  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
+}
+
+.button.danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(220, 38, 38, 0.4);
+}
+
+.button.small {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6b7280;
+}
+
+.empty-state .material-icons {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+  color: #9ca3af;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .admin-header {
+    padding: 1rem;
+  }
+  
+  .header-content {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .header-info {
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .card-content {
+    padding: 1rem;
+  }
+  
+  .quiz-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .quiz-card {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .quiz-actions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .table-header, .table-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  .table-header > div, .table-row > div {
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(20, 83, 45, 0.05);
+  }
+  
+  .table-header > div:last-child, .table-row > div:last-child {
+    border-bottom: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-info {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .admin-header h2 {
+    font-size: 1.25rem;
+  }
+  
+  .close-button span:last-child {
+    display: none;
+  }
 }
 </style>
