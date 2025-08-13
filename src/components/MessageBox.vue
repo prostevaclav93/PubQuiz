@@ -2,8 +2,15 @@
   <div v-if="isVisible" class="modal-overlay">
     <div class="message-box">
       <div class="message-box-header" :class="headerClass">
-        <h3>{{ title }}</h3>
-        <button v-if="!isPrompt" @click="cancel" class="close-button">&times;</button>
+        <div class="header-content">
+          <div class="header-icon">
+            <span class="material-icons">{{ headerIcon }}</span>
+          </div>
+          <h3>{{ title }}</h3>
+        </div>
+        <button v-if="!isPrompt" @click="cancel" class="close-button">
+          <span class="material-icons">close</span>
+        </button>
       </div>
       <div class="message-box-body">
         <p>{{ message }}</p>
@@ -20,9 +27,18 @@
         </div>
       </div>
       <div class="message-box-footer">
-        <button v-if="showConfirmButtons" @click="confirm" class="button primary-button">Potvrdit</button>
-        <button v-if="showConfirmButtons" @click="cancel" class="button secondary-button">Zrušit</button>
-        <button v-else @click="cancel" class="button primary-button">OK</button>
+        <button v-if="showConfirmButtons" @click="confirm" class="button primary-button">
+          <span class="material-icons">check</span>
+          Potvrdit
+        </button>
+        <button v-if="showConfirmButtons" @click="cancel" class="button secondary-button">
+          <span class="material-icons">close</span>
+          Zrušit
+        </button>
+        <button v-else @click="cancel" class="button primary-button">
+          <span class="material-icons">check</span>
+          OK
+        </button>
       </div>
     </div>
   </div>
@@ -48,7 +64,18 @@ const headerClass = computed(() => ({
   'header-error': isError.value,
   'header-warning': isWarning.value,
   'header-info': isInfo.value,
+  'header-prompt': isPrompt.value,
+  'header-default': !isSuccess.value && !isError.value && !isWarning.value && !isInfo.value && !isPrompt.value,
 }));
+
+const headerIcon = computed(() => {
+  if (isSuccess.value) return 'check_circle';
+  if (isError.value) return 'error';
+  if (isWarning.value) return 'warning';
+  if (isInfo.value) return 'info';
+  if (isPrompt.value) return 'help';
+  return 'notifications';
+});
 
 const show = (options) => {
   return new Promise((resolve) => {
@@ -148,45 +175,94 @@ defineExpose({
   justify-content: space-between;
   align-items: center;
   position: relative;
+  /* Ensure header always has a background - fallback */
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.header-icon {
+  background: rgba(253, 246, 227, 0.2);
+  padding: 0.75rem;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(253, 246, 227, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.header-icon .material-icons {
+  font-size: 1.5rem;
+  color: inherit;
 }
 
 .message-box-header h3 {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
+  flex: 1;
 }
 
+/* Specific header background classes - these will override the default */
 .header-success { 
-  background: linear-gradient(135deg, #2f855a 0%, #38a169 100%);
+  background: linear-gradient(135deg, #2f855a 0%, #38a169 100%) !important;
+  color: #fdf6e3 !important;
 }
+
 .header-error { 
-  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+  color: #fdf6e3 !important;
 }
+
 .header-warning { 
-  background: linear-gradient(135deg, #fcbf49 0%, #f59e0b 100%);
-  color: #4a3621;
+  background: linear-gradient(135deg, #fcbf49 0%, #f59e0b 100%) !important;
+  color: #4a3621 !important;
 }
+
 .header-info { 
-  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  color: #fdf6e3 !important;
+}
+
+.header-prompt {
+  background: linear-gradient(135deg, #14532d 0%, #2f855a 100%) !important;
+  color: #fdf6e3 !important;
+}
+
+.header-default {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+  color: #fdf6e3 !important;
 }
 
 .close-button {
-  background: none;
-  border: none;
+  background: rgba(253, 246, 227, 0.1);
+  border: 2px solid rgba(253, 246, 227, 0.2);
+  border-radius: 8px;
   color: inherit;
-  font-size: 2rem;
-  line-height: 1;
   cursor: pointer;
-  padding: 0;
-  position: absolute;
-  top: 1rem;
-  right: 1.5rem;
-  opacity: 0.8;
-  transition: opacity 0.2s ease;
+  padding: 0.5rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .close-button:hover {
-  opacity: 1;
+  background: rgba(253, 246, 227, 0.2);
+  border-color: rgba(253, 246, 227, 0.4);
+  transform: translateY(-1px);
+}
+
+.close-button .material-icons {
+  font-size: 1.25rem;
 }
 
 .message-box-body {
@@ -256,6 +332,7 @@ defineExpose({
   gap: 0.5rem;
   font-size: 1rem;
   letter-spacing: 0.25px;
+  white-space: nowrap;
 }
 
 .primary-button {
@@ -271,13 +348,14 @@ defineExpose({
 }
 
 .secondary-button {
-  background: #ecf0f1;
-  color: #34495e;
-  border: 1px solid #bdc3c7;
+  background: rgba(20, 83, 45, 0.1);
+  color: #14532d;
+  border: 2px solid rgba(20, 83, 45, 0.2);
 }
 
 .secondary-button:hover {
-  background: #dcdde1;
+  background: rgba(20, 83, 45, 0.15);
+  border-color: rgba(20, 83, 45, 0.3);
   transform: translateY(-2px);
 }
 
@@ -289,6 +367,18 @@ defineExpose({
   
   .message-box-header {
     padding: 1.25rem 1.5rem;
+  }
+  
+  .header-content {
+    gap: 0.75rem;
+  }
+  
+  .header-icon {
+    padding: 0.5rem;
+  }
+  
+  .header-icon .material-icons {
+    font-size: 1.25rem;
   }
   
   .message-box-body {

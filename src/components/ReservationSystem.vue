@@ -19,7 +19,7 @@
     </div>
     
     <div v-if="!loading && !selectedQuizInstance" class="content-container">
-      <div v-if="activeQuizInstances.length === 0" class="no-quizzes">
+      <div v-if="filteredQuizInstances.length === 0" class="no-quizzes">
         <span class="material-icons">event_busy</span>
         <h3>Momentálně nejsou dostupné žádné kvízy</h3>
         <p>Zkuste to později nebo se přihlaste k odběru novinek</p>
@@ -28,15 +28,16 @@
       <div v-else>
         <div class="section-header">
           <h2>Dostupné kvízy</h2>
-          <div class="quiz-count">{{ activeQuizInstances.length }} {{ activeQuizInstances.length === 1 ? 'kvíz' : activeQuizInstances.length <= 4 ? 'kvízy' : 'kvízů' }}</div>
+          <div class="quiz-count">{{ filteredQuizInstances.length }} {{ filteredQuizInstances.length === 1 ? 'kvíz' : filteredQuizInstances.length <= 4 ? 'kvízy' : 'kvízů' }}</div>
         </div>
         <div class="reservation-grid">
           <ReservationCard
-            v-for="instance in activeQuizInstances"
+            v-for="instance in filteredQuizInstances"
             :key="instance.id"
             :quiz-instance="instance"
             :user-reservations="[]"
             @reserve="selectQuizInstance"
+            @card-click="selectQuizInstance"
           />
         </div>
       </div>
@@ -77,6 +78,21 @@ const activeQuizInstances = ref([]);
 const selectedQuizInstance = ref(null);
 const selectedQuizReservations = ref([]);
 const loading = ref(true);
+
+// Computed property to filter out past quizzes
+const filteredQuizInstances = computed(() => {
+  const now = new Date();
+  
+  return activeQuizInstances.value.filter(instance => {
+    if (!instance.quiz_date || !instance.quiz_time) return false;
+    
+    // Create a datetime object from quiz_date and quiz_time
+    const quizDateTime = new Date(`${instance.quiz_date}T${instance.quiz_time}`);
+    
+    // Only show quizzes that are in the future
+    return quizDateTime > now;
+  });
+});
 
 const fetchActiveQuizInstances = async () => {
   const { data, error } = await supabase

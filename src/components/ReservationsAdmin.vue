@@ -30,9 +30,6 @@
     <!-- Quiz Selection -->
     <div v-else-if="!selectedQuizInstanceId" class="content-card">
       <div class="card-header">
-        <div class="header-icon">
-          <span class="material-icons">quiz</span>
-        </div>
         <div>
           <h3>Vyberte kvíz k úpravě rezervací</h3>
           <p>Zobrazte a upravte rezervace pro vybraný kvíz</p>
@@ -84,7 +81,7 @@
     <div v-else class="content-card">
       <div class="card-header">
         <div class="header-info">
-          <button @click="selectedQuizInstanceId = null" class="back-button">
+          <button @click="selectedQuizInstanceId = null" class="header-icon">
             <span class="material-icons">arrow_back</span>
           </button>
           <div>

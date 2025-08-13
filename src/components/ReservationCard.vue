@@ -1,5 +1,5 @@
 <template>
-  <div class="card">
+  <div class="card" @click="handleCardClick">
     <div class="card-image-container">
       <img :src="quizInstance.places.image_url" alt="Místo konání kvízu" class="card-image" />
       <div class="card-overlay">
@@ -35,12 +35,12 @@
         <button 
           v-if="!hasReservation"
           class="button primary-button"
-          @click="$emit('reserve', quizInstance.id)"
+          @click.stop="$emit('reserve', quizInstance.id)"
         >
           <span class="material-icons">how_to_reg</span>
           Rezervovat místo
         </button>
-        <button v-else class="button reserved-button">
+        <button v-else class="button reserved-button" @click.stop>
           <span class="material-icons">check_circle</span>
           Již rezervováno
         </button>
@@ -62,6 +62,8 @@ const props = defineProps({
     required: true,
   }
 });
+
+const emit = defineEmits(['reserve', 'card-click']);
 
 const formattedDate = computed(() => {
   const dateStr = props.quizInstance.quiz_date;
@@ -102,13 +104,16 @@ const hasReservation = computed(() => {
   return props.userReservations?.some(reservation => reservation.quiz_instance_id === props.quizInstance.id);
 });
 
+const handleCardClick = () => {
+  emit('card-click', props.quizInstance.id);
+};
 </script>
 
 <style scoped>
 .card {
   display: flex;
   flex-direction: column;
-  background-color: #fdf6e3;
+  background-color: #ffffff;
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(74, 54, 33, 0.08);
   overflow: hidden;
@@ -299,4 +304,5 @@ const hasReservation = computed(() => {
   .card-image-container {
     height: 180px;
   }
-}</style>
+}
+</style>

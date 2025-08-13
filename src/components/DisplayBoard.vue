@@ -66,7 +66,7 @@
                   <div class="score-content">
                     <span class="regular-score">{{ getScoreValue(team.id, roundNum, 'regular_score') }}</span>
                     <span v-if="getScoreValue(team.id, roundNum, 'bonus_score')" class="bonus-score">
-                      <span class="material-icons">star</span>
+                      +1B
                     </span>
                   </div>
                 </td>
@@ -501,12 +501,15 @@ const getRankClass = (index) => {
   font-weight: 700;
   font-size: 1.1rem;
   color: #14532d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .player-count {
-  font-size: 0.875rem;
-  color: #6b7280;
-  font-weight: 500;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  font-weight: 400;
 }
 
 .score-cell {
@@ -528,11 +531,14 @@ const getRankClass = (index) => {
 }
 
 .bonus-score {
-  color: #fcbf49;
-}
-
-.bonus-score .material-icons {
-  font-size: 1.25rem;
+  color: #2f855a;
+  font-weight: 700;
+  font-size: 0.875rem;
+  background: rgba(47, 133, 90, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  border: 1px solid rgba(47, 133, 90, 0.2);
 }
 
 .total-cell {
@@ -639,4 +645,5 @@ const getRankClass = (index) => {
   .team-column {
     width: 150px;
   }
-}</style>
+}
+</style>

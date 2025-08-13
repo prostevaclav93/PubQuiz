@@ -2,8 +2,45 @@
   <div class="admin-panel">
     <MessageBox ref="messageBox" />
     
+    <!-- Password Protection Modal -->
+    <div v-if="!isAuthenticated && showPasswordModal" class="modal-overlay password-modal-overlay">
+      <div class="password-modal">
+        <div class="password-modal-header">
+          <div class="header-icon">
+            <span class="material-icons">lock</span>
+          </div>
+          <div>
+            <h2>Přístup do administrace</h2>
+            <p>Zadejte heslo pro pokračování</p>
+          </div>
+        </div>
+        <div class="password-modal-body">
+          <form @submit.prevent="authenticateUser">
+            <div class="form-section">
+              <label class="form-label">Heslo</label>
+              <input 
+                type="password" 
+                v-model="passwordInput" 
+                class="text-input password-input"
+                placeholder="Zadejte administrační heslo"
+                required
+                autofocus
+                @keyup.enter="authenticateUser"
+              />
+            </div>
+            <div class="password-actions">
+              <button type="submit" class="button primary large">
+                <span class="material-icons">login</span>
+                Přihlásit se
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
     <!-- Header Section -->
-    <div class="page-header">
+    <div v-if="isAuthenticated" class="page-header">
       <div class="header-content">
         <div class="header-left">
           <button class="nav-button" @click="goToHistory">
@@ -36,12 +73,16 @@
             <span class="material-icons">tune</span>
             <span>Nastavení</span>
           </button>
+          <button class="action-button logout-button" @click="logout">
+            <span class="material-icons">logout</span>
+            <span>Odhlásit</span>
+          </button>
         </div>
       </div>
     </div>
 
     <!-- Settings Modal -->
-    <div v-if="showSettings" class="modal-overlay" @click.self="toggleSettings">
+    <div v-if="isAuthenticated && showSettings" class="modal-overlay" @click.self="toggleSettings">
       <div class="settings-modal">
         <div class="modal-header">
           <h2>Nastavení administrace</h2>
@@ -88,14 +129,14 @@
     </div>
     
     <!-- Reservations Modal -->
-    <div v-if="showReservations" class="modal-overlay">
+    <div v-if="isAuthenticated && showReservations" class="modal-overlay">
       <div class="reservations-modal">
         <ReservationsAdmin @close="toggleReservations" />
       </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="content-container">
+    <!-- Main Content - Only show when authenticated -->
+    <div v-if="isAuthenticated" class="content-container">
       <!-- Quiz Selection/Creation -->
       <div v-if="!currentQuizInstance" class="content-card">
         <div class="card-header">
@@ -332,7 +373,7 @@
                 <div class="col-team">
                   <div class="team-info">
                     <span class="team-name">{{ team.team_name }}</span>
-                    <span class="team-players">({{ team.number_of_players }})</span>
+                    <span class="team-players">{{ team.number_of_players }} hráčů</span>
                   </div>
                   <button 
                     class="remove-team-btn" 
@@ -360,7 +401,7 @@
                       :class="['bonus-btn', { 'active': getScoreValue(team.id, n, 'bonus_score') }]"
                       :disabled="isRoundLocked(n)"
                     >
-                      <span class="material-icons">star</span>
+                      +1B
                     </button>
                   </div>
                 </div>
@@ -382,10 +423,16 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { supabase } from '../supabase/supabaseClient';
 import MessageBox from './MessageBox.vue';
 import ReservationsAdmin from './ReservationsAdmin.vue';
+import { ADMIN_PASSWORD } from '../config';
 
 const messageBox = ref(null);
 
 const MAX_ROUNDS_LIMIT = 5;
+
+// === Password Protection State ===
+const isAuthenticated = ref(false);
+const showPasswordModal = ref(true);
+const passwordInput = ref('');
 
 // === State management ===
 const places = ref([]);
@@ -405,6 +452,29 @@ const selectedExistingQuizInstanceId = ref('');
 
 const showSettings = ref(false);
 const showReservations = ref(false);
+
+// === Password Protection Methods ===
+const authenticateUser = () => {
+  if (passwordInput.value === ADMIN_PASSWORD) {
+    isAuthenticated.value = true;
+    showPasswordModal.value = false;
+    sessionStorage.setItem('pubq-admin-auth', 'true'); // Save to session
+    passwordInput.value = ''; // Clear password for security
+    messageBox.value.success('Úspěch', 'Úspěšně jste se přihlásili do administrace.');
+  } else {
+    messageBox.value.error('Chyba', 'Nesprávné heslo. Zkuste to znovu.');
+    passwordInput.value = ''; // Clear incorrect password
+  }
+};
+
+const logout = () => {
+  isAuthenticated.value = false;
+  showPasswordModal.value = true;
+  sessionStorage.removeItem('pubq-admin-auth'); // Clear session
+  currentQuizInstance.value = null;
+  isQuizStarted.value = false;
+  messageBox.value.info('Informace', 'Byli jste odhlášeni z administrace.');
+};
 
 // === Computed properties ===
 const formattedQuizDateAndPlace = computed(() => {
@@ -490,6 +560,13 @@ watch(selectedPlaceId, () => {
 
 // === Lifecycle hooks ===
 onMounted(() => {
+  // Check session storage for existing authentication
+  const savedAuth = sessionStorage.getItem('pubq-admin-auth');
+  if (savedAuth === 'true') {
+    isAuthenticated.value = true;
+    showPasswordModal.value = false;
+  }
+  
   fetchPlaces();
   fetchActiveQuizInstances();
   fetchGlobalTeams();
@@ -548,23 +625,29 @@ const createNewQuizInstance = async () => {
     return;
   }
 
-  const { data, error } = await supabase
-    .from('quiz_instances')
-    .insert([{
-      place_id: selectedPlaceId.value,
-      quiz_date: quizDate.value,
-      quiz_time: quizTime.value,
-      is_completed: false,
-      current_round: 0,
-      is_revealing: false,
-      revealed_index: 0
-    }])
-    .select('id, place_id, quiz_date, quiz_time, places(name)')
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('quiz_instances')
+      .insert([{
+        place_id: selectedPlaceId.value,
+        quiz_date: quizDate.value,
+        quiz_time: quizTime.value,
+        is_completed: false,
+        current_round: 0,
+        is_revealing: false,
+        revealed_index: 0
+      }])
+      .select('id, place_id, quiz_date, quiz_time, places(name)')
+      .single();
 
-  if (error) {
-    messageBox.value.error('Chyba', 'Nepodařilo se vytvořit novou instanci kvízu.');
-  } else {
+    if (error) {
+      console.error('Error creating quiz instance:', error);
+      messageBox.value.error('Chyba', 'Nepodařilo se vytvořit novou instanci kvízu.');
+      return;
+    }
+
+    console.log('Created quiz instance:', data);
+
     currentQuizInstance.value = { 
         ...data, 
         place_name: data.places.name,
@@ -574,68 +657,119 @@ const createNewQuizInstance = async () => {
     };
     isQuizStarted.value = false;
     
-    // Load teams from reservations
-    await fetchReservationsAndAddToQuiz(currentQuizInstance.value.id);
+    // For NEW quiz instances, just load existing quiz teams (if any)
+    // Don't try to load from reservations yet - that should happen when loading existing quiz
     await fetchQuizTeams();
     
     messageBox.value.success('Úspěch', 'Nová instance kvízu byla úspěšně vytvořena.');
+  } catch (err) {
+    console.error('Unexpected error creating quiz instance:', err);
+    messageBox.value.error('Chyba', 'Neočekávaná chyba při vytváření kvízu.');
   }
 };
 
 const fetchReservationsAndAddToQuiz = async (quizInstanceId) => {
-    // Load reservations that are already linked to this quiz instance
-    const { data: reservations, error: fetchError } = await supabase
-        .from('reservations')
-        .select('team_id, number_of_players')
-        .eq('quiz_instance_id', quizInstanceId);
+    try {
+        console.log('Loading teams from reservations for quiz instance:', quizInstanceId);
         
-    if (fetchError) {
-        messageBox.value.error('Chyba', 'Nepodařilo se načíst rezervace pro přidání do kvízu.');
-        return;
-    }
-    
-    if (reservations.length === 0) {
-        messageBox.value.info('Informace', 'Pro tento kvíz nebyly nalezeny žádné rezervace.');
-        return;
-    }
+        // Load reservations that are already linked to this quiz instance
+        const { data: reservations, error: fetchError } = await supabase
+            .from('reservations')
+            .select('team_id, number_of_players')
+            .eq('quiz_instance_id', quizInstanceId);
+            
+        if (fetchError) {
+            console.error('Error fetching reservations:', fetchError);
+            messageBox.value.error('Chyba', 'Nepodařilo se načíst rezervace pro přidání do kvízu.');
+            return;
+        }
+        
+        console.log('Found reservations:', reservations);
+        
+        if (reservations.length === 0) {
+            console.log('No reservations found for this quiz instance');
+            return; // Don't show message for empty reservations
+        }
 
-    // Convert reservations to quiz_teams
-    const teamsToInsert = reservations.map(reservation => ({
-        quiz_instance_id: quizInstanceId,
-        team_id: reservation.team_id,
-        number_of_players: reservation.number_of_players,
-    }));
+        // Check if these teams are already in quiz_teams to avoid duplicates
+        const { data: existingQuizTeams, error: existingError } = await supabase
+            .from('quiz_teams')
+            .select('team_id')
+            .eq('quiz_instance_id', quizInstanceId);
+            
+        if (existingError) {
+            console.error('Error checking existing quiz teams:', existingError);
+            return;
+        }
+        
+        const existingTeamIds = existingQuizTeams?.map(qt => qt.team_id) || [];
+        console.log('Existing team IDs in quiz_teams:', existingTeamIds);
 
-    const { error: insertError } = await supabase
-        .from('quiz_teams')
-        .insert(teamsToInsert);
+        // Filter out teams that are already in quiz_teams
+        const newReservations = reservations.filter(res => !existingTeamIds.includes(res.team_id));
+        
+        if (newReservations.length === 0) {
+            console.log('All reservation teams already added to quiz');
+            return; // Don't show message if teams already exist
+        }
 
-    if (insertError) {
-        console.error('Insert error:', insertError);
-        messageBox.value.error('Chyba', 'Nepodařilo se přidat týmy z rezervací do kvízu.');
-    } else {
-        messageBox.value.info('Informace', `Bylo přidáno ${teamsToInsert.length} týmů z existujících rezervací.`);
+        // Convert new reservations to quiz_teams
+        const teamsToInsert = newReservations.map(reservation => ({
+            quiz_instance_id: quizInstanceId,
+            team_id: reservation.team_id,
+            number_of_players: reservation.number_of_players,
+        }));
+
+        console.log('Inserting new teams into quiz_teams:', teamsToInsert);
+
+        const { error: insertError } = await supabase
+            .from('quiz_teams')
+            .insert(teamsToInsert);
+
+        if (insertError) {
+            console.error('Insert error:', insertError);
+            messageBox.value.error('Chyba', 'Nepodařilo se přidat týmy z rezervací do kvízu.');
+        } else {
+            console.log(`Successfully added ${teamsToInsert.length} teams to quiz_teams`);
+            messageBox.value.success('Úspěch', `Bylo přidáno ${teamsToInsert.length} týmů z existujících rezervací.`);
+        }
+    } catch (error) {
+        console.error('Unexpected error in fetchReservationsAndAddToQuiz:', error);
+        messageBox.value.error('Chyba', 'Neočekávaná chyba při načítání rezervací.');
     }
 };
 
 const loadExistingQuizInstance = async () => {
   if (!selectedExistingQuizInstanceId.value) return;
 
-  const { data, error } = await supabase
-    .from('quiz_instances')
-    .select('*, places(name)')
-    .eq('id', selectedExistingQuizInstanceId.value)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('quiz_instances')
+      .select('*, places(name)')
+      .eq('id', selectedExistingQuizInstanceId.value)
+      .single();
 
-  if (error) {
-    messageBox.value.error('Chyba', 'Nepodařilo se načíst existující kvíz.');
-  } else {
+    if (error) {
+      console.error('Error loading existing quiz instance:', error);
+      messageBox.value.error('Chyba', 'Nepodařilo se načíst existující kvíz.');
+      return;
+    }
+
+    console.log('Loaded existing quiz instance:', data);
+
     currentQuizInstance.value = { ...data, place_name: data.places.name };
     isQuizStarted.value = data.current_round > 0;
     
-    // Load teams from quiz_teams table (not reservations)
+    // For EXISTING quiz instances, first try to load teams from reservations
+    await fetchReservationsAndAddToQuiz(currentQuizInstance.value.id);
+    
+    // Then load all quiz teams (including any that were just added from reservations)
     await fetchQuizTeams();
+    
     messageBox.value.success('Úspěch', 'Kvíz byl úspěšně načten.');
+  } catch (err) {
+    console.error('Unexpected error loading quiz instance:', err);
+    messageBox.value.error('Chyba', 'Neočekávaná chyba při načítání kvízu.');
   }
 };
 
@@ -673,7 +807,12 @@ const addTeamToQuiz = async () => {
 };
 
 const fetchQuizTeams = async () => {
-  if (!currentQuizInstance.value) return;
+  if (!currentQuizInstance.value) {
+    console.log('No current quiz instance, skipping team fetch');
+    return;
+  }
+
+  console.log('Fetching quiz teams for instance:', currentQuizInstance.value.id); // Debug log
 
   const { data, error } = await supabase
     .from('quiz_teams')
@@ -682,13 +821,16 @@ const fetchQuizTeams = async () => {
     .order('created_at', { ascending: true });
 
   if (error) {
+    console.error('Error fetching quiz teams:', error);
     messageBox.value.error('Chyba', 'Nepodařilo se načíst týmy v kvízu.');
   } else {
+    console.log('Fetched quiz teams:', data); // Debug log
     quizTeams.value = data.map(qt => ({
       ...qt,
       team_name: qt.teams.name,
       scores: qt.scores || [],
     }));
+    console.log('Processed quiz teams:', quizTeams.value); // Debug log
   }
 };
 
@@ -1019,6 +1161,92 @@ const toggleReservations = () => {
   min-height: 100vh;
   background: linear-gradient(135deg, #fdf6e3 0%, #f7f3e9 100%);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Password Modal Styles */
+.password-modal-overlay {
+  background-color: rgba(74, 54, 33, 0.8);
+  backdrop-filter: blur(8px);
+}
+
+.password-modal {
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(74, 54, 33, 0.3);
+  width: 90%;
+  max-width: 500px;
+  overflow: hidden;
+  border: 2px solid rgba(20, 83, 45, 0.1);
+}
+
+.password-modal-header {
+  background: linear-gradient(135deg, #14532d 0%, #2f855a 100%);
+  color: #fdf6e3;
+  padding: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  text-align: left;
+}
+
+.password-modal-header .header-icon {
+  background: rgba(252, 191, 73, 0.2);
+  padding: 1rem;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(252, 191, 73, 0.3);
+}
+
+.password-modal-header .header-icon .material-icons {
+  font-size: 1.5rem;
+  color: #fcbf49;
+}
+
+.password-modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.password-modal-header p {
+  margin: 0.5rem 0 0 0;
+  opacity: 0.9;
+  font-size: 0.95rem;
+}
+
+.password-modal-body {
+  padding: 2rem;
+}
+
+.password-input {
+  width: 100%;
+  font-size: 1.1rem;
+  padding: 1rem 1.25rem;
+  text-align: center;
+  letter-spacing: 2px;
+  min-width: 300px;
+}
+
+.password-input:focus {
+  letter-spacing: normal;
+  text-align: left;
+}
+
+.password-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.logout-button {
+  background: rgba(220, 38, 38, 0.1) !important;
+  color: #dc2626 !important;
+  border-color: rgba(220, 38, 38, 0.2) !important;
+}
+
+.logout-button:hover {
+  background: rgba(220, 38, 38, 0.15) !important;
+  border-color: rgba(220, 38, 38, 0.3) !important;
 }
 
 /* Page Header */
@@ -1359,6 +1587,7 @@ const toggleReservations = () => {
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid rgba(20, 83, 45, 0.1);
+  width: 100%;
 }
 
 .table-header {
@@ -1374,7 +1603,8 @@ const toggleReservations = () => {
 }
 
 .scores-table .table-header {
-  grid-template-columns: 2fr repeat(5, 1fr) auto;
+  grid-template-columns: 250px repeat(5, minmax(100px, 1fr)) 100px;
+  gap: 0;
 }
 
 .table-row {
@@ -1392,21 +1622,53 @@ const toggleReservations = () => {
 }
 
 .scores-table .table-row {
-  grid-template-columns: 2fr repeat(5, 1fr) auto;
+  grid-template-columns: 250px repeat(5, minmax(100px, 1fr)) 100px;
+  gap: 0;
 }
 
 .table-header > div, .table-row > div {
   padding: 1rem;
   display: flex;
   align-items: center;
+  min-height: 60px;
+  border-right: 1px solid rgba(20, 83, 45, 0.05);
+}
+
+.table-header > div:last-child, .table-row > div:last-child {
+  border-right: none;
 }
 
 .col-team {
-  justify-content: space-between;
+  justify-content: flex-start;
+  align-items: center;
+  padding-left: 1.5rem;
+  min-width: 250px;
+  display: flex;
+  gap: 1rem;
 }
 
-.col-players, .col-actions, .col-round, .col-total {
+.col-players, .col-actions {
   justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-width: 80px;
+}
+
+.col-round {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-width: 100px;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.col-total {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-width: 100px;
+  font-weight: 700;
 }
 
 .col-round.current {
@@ -1448,52 +1710,85 @@ const toggleReservations = () => {
 .score-controls {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  flex-direction: row;
 }
 
 .score-input {
-  width: 60px;
-  padding: 0.5rem;
-  border: 1px solid rgba(20, 83, 45, 0.2);
-  border-radius: 6px;
+  width: 70px;
+  padding: 0.75rem 0.5rem;
+  border: 2px solid rgba(20, 83, 45, 0.2);
+  border-radius: 10px;
   text-align: center;
-  font-size: 0.875rem;
+  font-size: 1rem;
+  font-weight: 600;
   background: #fdf6e3;
+  color: #14532d;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(20, 83, 45, 0.1);
 }
 
 .score-input:focus {
   outline: none;
   border-color: #14532d;
   background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(20, 83, 45, 0.15), 0 4px 8px rgba(20, 83, 45, 0.15);
+  transform: translateY(-1px);
 }
 
 .score-input:disabled {
   background: #f3f4f6;
   color: #9ca3af;
   cursor: not-allowed;
+  border-color: #e5e7eb;
+  box-shadow: none;
 }
 
 .bonus-btn {
-  background: none;
-  border: none;
-  color: #d1d5db;
+  background: #ffffff;
+  border: 2px solid #2f855a;
+  color: #2f855a;
   cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 4px;
-  transition: all 0.2s ease;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  min-width: 50px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(47, 133, 90, 0.1);
 }
 
 .bonus-btn:hover:not(:disabled) {
-  background: rgba(252, 191, 73, 0.1);
+  background: rgba(47, 133, 90, 0.1);
+  border-color: #2f855a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(47, 133, 90, 0.2);
 }
 
 .bonus-btn.active {
-  color: #fcbf49;
+  background: linear-gradient(135deg, #2f855a 0%, #38a169 100%);
+  border: 2px solid #2f855a;
+  color: #ffffff;
+  box-shadow: 0 3px 6px rgba(47, 133, 90, 0.3);
+}
+
+.bonus-btn.active:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(47, 133, 90, 0.4);
+  transform: translateY(-2px);
 }
 
 .bonus-btn:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 .total-score {
@@ -1679,13 +1974,42 @@ const toggleReservations = () => {
   
   .scores-table .table-header,
   .scores-table .table-row {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
+    grid-template-columns: 200px repeat(5, 80px) 80px;
+    gap: 0;
   }
   
   .scores-table .table-header > div,
   .scores-table .table-row > div {
-    padding: 0.75rem;
+    padding: 0.5rem 0.25rem;
+    font-size: 0.8rem;
+  }
+  
+  .col-team {
+    min-width: 200px;
+    padding-left: 1rem;
+  }
+  
+  .score-input {
+    width: 55px;
+    padding: 0.5rem 0.25rem;
+    font-size: 0.9rem;
+  }
+  
+  .bonus-btn {
+    width: 45px;
+    height: 32px;
+    font-size: 0.65rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .password-modal {
+    width: 95%;
+    max-width: 400px;
+  }
+  
+  .password-input {
+    min-width: auto;
+    font-size: 1rem;
   }
 }
 
@@ -1693,8 +2017,6 @@ const toggleReservations = () => {
   .header-center {
     flex-direction: column;
     gap: 1rem;
-  }
-  
   }
   
   .modal-header {
@@ -1710,4 +2032,33 @@ const toggleReservations = () => {
     width: 95%;
     margin: 1rem;
   }
+  
+  .scores-table .table-header,
+  .scores-table .table-row {
+    grid-template-columns: 150px repeat(5, 60px) 60px;
+  }
+  
+  .col-team {
+    min-width: 150px;
+    padding-left: 0.5rem;
+  }
+  
+  .team-name {
+    font-size: 0.9rem;
+  }
+  
+  .team-players {
+    font-size: 0.75rem;
+  }
+  
+  .score-input {
+    width: 45px;
+  }
+  
+  .bonus-btn {
+    width: 35px;
+    height: 20px;
+    font-size: 0.55rem;
+  }
+}
 </style>
