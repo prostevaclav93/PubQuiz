@@ -70,7 +70,8 @@
               v-model="numberOfPlayers" 
               min="1" 
               max="8"
-              required 
+              required
+              placeholder="Zadejte počet hráčů"
             />
             <span class="form-hint">Maximálně 8 hráčů na tým</span>
           </div>
@@ -155,7 +156,7 @@ const emit = defineEmits(['reservation-submitted']);
 const messageBox = ref(null);
 
 const teamName = ref('');
-const numberOfPlayers = ref(4);
+const numberOfPlayers = ref('');
 
 const submitReservation = async () => {
   try {
@@ -227,7 +228,7 @@ const submitReservation = async () => {
       await messageBox.value.success('Rezervace úspěšná!', 'Vaše rezervace byla úspěšně odeslána!');
       
       teamName.value = '';
-      numberOfPlayers.value = 4;
+      numberOfPlayers.value = "";
       
       emit('reservation-submitted');
     }
