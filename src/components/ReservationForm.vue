@@ -27,6 +27,13 @@
             <span class="info-value">{{ quizLocation }}</span>
           </div>
         </div>
+        <div class="info-item">
+          <span class="material-icons">payments</span>
+          <div>
+            <span class="info-label">Vstupné za člena týmu</span>
+            <span class="info-value">100 Kč</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -62,10 +69,10 @@
               id="players" 
               v-model="numberOfPlayers" 
               min="1" 
-              max="10" 
+              max="8"
               required 
             />
-            <span class="form-hint">Maximálně 10 hráčů na tým</span>
+            <span class="form-hint">Maximálně 8 hráčů na tým</span>
           </div>
         </div>
 
@@ -271,7 +278,7 @@ const submitReservation = async () => {
 .quiz-info-details {
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
 .info-item {
@@ -560,4 +567,5 @@ const submitReservation = async () => {
   .info-item {
     padding: 1rem;
   }
-}</style>
+}
+</style>
