@@ -7,7 +7,7 @@
         </div>
         <div class="header-text">
           <h1 class="page-title">Rezervace na Pubkvíz</h1>
-          <p class="page-subtitle">Vyberte místo a zarezervujte si místo pro svůj tým na nadcházející kvízy</p>
+          <p class="page-subtitle">Vyberte si podnik a ulovte si místo pro svůj tým na dalším kvízu!</p>
         </div>
       </div>
       <div class="header-decoration"></div>

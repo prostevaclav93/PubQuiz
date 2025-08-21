@@ -48,16 +48,16 @@
             </thead>
             <tbody>
               <tr v-for="(team, index) in displayedTeams" :key="team.id" 
-                  :class="{ 'podium-position': index < 3 && isQuizFinished }">
+                  :class="{ 'podium-position': team.rank <= 3 && isQuizFinished }">
                 <td class="rank-cell">
-                  <span class="rank-badge" :class="getRankClass(index + teamsToHideCount)">
-                    {{ getRankEmoji(index + teamsToHideCount) }}
+                  <span class="rank-badge" :class="getRankClass(team.rank)">
+                    {{ getRankEmoji(team.rank) }}
                   </span>
                 </td>
                 <td class="team-cell">
                   <div class="team-info">
                     <span class="team-name">{{ team.team_name }}</span>
-                    <span class="player-count">{{ team.number_of_players }} hráčů</span>
+                    <span class="player-count">{{ team.number_of_players }} {{ getPlayerWord(team.number_of_players) }}</span>
                   </div>
                 </td>
                 <td v-for="roundNum in maxRounds" :key="roundNum"
@@ -97,12 +97,36 @@ const supabaseChannels = ref([]);
 // Computed
 const sortedTeams = computed(() => {
   if (!quizTeams.value) return [];
-  return [...quizTeams.value]
+  
+  const teams = [...quizTeams.value]
     .map(quizTeam => ({
       ...quizTeam,
-      total: calculateTotal(quizTeam.id)
+      total: calculateTotal(quizTeam.id),
+      totalRegularScore: calculateTotalRegularScore(quizTeam.id)
     }))
-    .sort((a, b) => b.total - a.total);
+    .sort((a, b) => {
+      // First sort by total score
+      if (b.total !== a.total) {
+        return b.total - a.total;
+      }
+      // If total scores are equal, sort by regular score (higher regular score ranks better)
+      return b.totalRegularScore - a.totalRegularScore;
+    });
+  
+  // Calculate ranks considering ties (same total AND same regular score)
+  for (let i = 0; i < teams.length; i++) {
+    if (i === 0) {
+      teams[i].rank = 1;
+    } else if (teams[i].total === teams[i - 1].total && teams[i].totalRegularScore === teams[i - 1].totalRegularScore) {
+      // Same total score AND same regular score, same rank
+      teams[i].rank = teams[i - 1].rank;
+    } else {
+      // Different total score OR different regular score, different rank
+      teams[i].rank = i + 1;
+    }
+  }
+  
+  return teams;
 });
 
 const teamsToHideCount = computed(() => {
@@ -196,20 +220,34 @@ const calculateTotal = (quizTeamId) => {
     .reduce((sum, score) => sum + (score.regular_score || 0) + (score.bonus_score || 0), 0);
 };
 
-const getRankEmoji = (index) => {
-  const rank = index + 1;
+const calculateTotalRegularScore = (quizTeamId) => {
+  return scores.value
+    .filter(s => s.quiz_team_id === quizTeamId)
+    .reduce((sum, score) => sum + (score.regular_score || 0), 0);
+};
+
+const getRankEmoji = (rank) => {
   if (rank === 1) return '🥇';
   if (rank === 2) return '🥈';
   if (rank === 3) return '🥉';
   return String(rank);
 };
 
-const getRankClass = (index) => {
-  const rank = index + 1;
+const getRankClass = (rank) => {
   if (rank === 1) return 'rank-gold';
   if (rank === 2) return 'rank-silver';
   if (rank === 3) return 'rank-bronze';
   return 'rank-regular';
+};
+
+const getPlayerWord = (numberOfPlayers) => {
+  if (numberOfPlayers === 1) {
+    return 'hráč';
+  } else if (numberOfPlayers >= 2 && numberOfPlayers <= 4) {
+    return 'hráči';
+  } else {
+    return 'hráčů';
+  }
 };
 </script>
 

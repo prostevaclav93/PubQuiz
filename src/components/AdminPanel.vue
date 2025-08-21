@@ -384,6 +384,7 @@
                   </button>
                 </div>
                 
+                <!-- Points updating -->
                 <div v-for="n in MAX_ROUNDS_LIMIT" :key="n" 
                      :class="['col-round', { 'current': n === currentQuizInstance?.current_round }]">
                   <div class="score-controls">
@@ -394,7 +395,8 @@
                       :disabled="isRoundLocked(n)" 
                       class="score-input" 
                       min="0"
-                      step="1"
+                      step="0.5"
+                      placeholder=""
                     />
                     <button 
                       @click="toggleBonus(team.id, n)" 
@@ -921,10 +923,50 @@ const cancelQuizPreparation = async () => {
 };
 
 const updateScore = async (teamId, roundNumber, type, value) => {
-    const numericValue = type === 'bonus_score' ? (parseFloat(value) || 0) : parseFloat(value) || 0;
+    let numericValue;
+    
+    // Handle empty value
+    if (value === '' || value === null || value === undefined) {
+        numericValue = null;
+    } else {
+        // Parse and validate the numeric value
+        const parsed = parseFloat(value);
+        if (isNaN(parsed) || parsed < 0) {
+            return; // Invalid input, don't update
+        }
+        
+        // For regular scores, allow decimals with one decimal place
+        if (type === 'regular_score') {
+            // Round to one decimal place to handle floating point precision
+            numericValue = Math.round(parsed * 10) / 10;
+        } else {
+            // For bonus scores, keep as is (should be 0 or 1)
+            numericValue = parsed;
+        }
+    }
+    
+    // Update local state immediately (optimistic update)
+    const team = quizTeams.value.find(t => t.id === teamId);
+    if (team) {
+        let existingScore = team.scores.find(s => s.round_number === roundNumber);
+        
+        if (existingScore) {
+            // Update existing score in local state
+            existingScore[type] = numericValue;
+        } else if (numericValue !== null) {
+            // Add new score to local state
+            const newScore = {
+                quiz_team_id: teamId,
+                round_number: roundNumber,
+                regular_score: type === 'regular_score' ? numericValue : null,
+                bonus_score: type === 'bonus_score' ? numericValue : null
+            };
+            team.scores.push(newScore);
+        }
+    }
     
     try {
-        // Check if score already exists
+        // Check if score already exists in database
         const { data: existingScore, error: fetchError } = await supabase
             .from('scores')
             .select('id, regular_score, bonus_score')
@@ -937,20 +979,20 @@ const updateScore = async (teamId, roundNumber, type, value) => {
         }
 
         if (existingScore) {
-            // Update existing score
+            // Update existing score in database
             const { error: updateError } = await supabase
                 .from('scores')
                 .update({ [type]: numericValue })
                 .eq('id', existingScore.id);
                 
             if (updateError) throw updateError;
-        } else {
-            // Create new score record with both fields initialized
+        } else if (numericValue !== null) {
+            // Create new score record in database
             const newScoreData = {
                 quiz_team_id: teamId,
                 round_number: roundNumber,
-                regular_score: type === 'regular_score' ? numericValue : 0,
-                bonus_score: type === 'bonus_score' ? numericValue : 0
+                regular_score: type === 'regular_score' ? numericValue : null,
+                bonus_score: type === 'bonus_score' ? numericValue : null
             };
             
             const { error: insertError } = await supabase
@@ -959,13 +1001,12 @@ const updateScore = async (teamId, roundNumber, type, value) => {
                 
             if (insertError) throw insertError;
         }
-
-        // Refresh the teams data to show updated scores
-        await fetchQuizTeams();
         
     } catch (err) {
         console.error('Error updating score:', err);
         messageBox.value.error('Chyba', 'Nepodařilo se aktualizovat skóre.');
+        // On error, refresh from database to restore correct state
+        await fetchQuizTeams();
     }
 };
 
