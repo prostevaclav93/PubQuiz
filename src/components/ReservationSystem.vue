@@ -155,7 +155,6 @@ onMounted(() => {
   background: linear-gradient(135deg, #4a3621 0%, #14532d 100%);
   color: #fdf6e3;
   padding: 3rem 2rem 4rem;
-  position: relative;
   overflow: hidden;
 }
 

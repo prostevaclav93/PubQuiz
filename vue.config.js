@@ -5,8 +5,8 @@ module.exports = defineConfig({
   pages: {
     admin: {
       entry: 'src/main-admin.js',
-      template: 'public/index.html',
-      filename: 'index.html',
+      template: 'public/admin.html',
+      filename: 'admin.html',
       title: 'Administrace kvízu',
     },
     display: {

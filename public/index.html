@@ -1,17 +1,843 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PubKvíz - Nejlepší kvízové večery v Praze</title>
     <link rel="icon" type="image/png" href="/favicon.png">
-    <title>Administrace kvízu</title>
-  </head>
-  <body>
-    <script type="text/javascript" async src="https://tenor.com/embed.js"></script>
-    <noscript>
-      <strong>Pro spuštění administrace je nutné mít povolený JavaScript.</strong>
-    </noscript>
-    <div id="app"></div>
-    </body>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #4a3621;
+            background: #fdf6e3;
+        }
+
+        /* Navigation */
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(74, 54, 33, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            transition: all 0.3s ease;
+            border-bottom: 1px solid rgba(252, 191, 73, 0.2);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: #fdf6e3;
+            font-size: 1.5rem;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .logo .material-icons {
+            font-size: 2rem;
+            color: #fcbf49;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-link {
+            color: #fdf6e3;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-link:hover {
+            color: #fcbf49;
+        }
+
+        .cta-button {
+            background: linear-gradient(135deg, #fcbf49 0%, #f59e0b 100%);
+            color: #4a3621;
+            padding: 0.75rem 1.5rem;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 16px rgba(252, 191, 73, 0.3);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(252, 191, 73, 0.4);
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, #4a3621 0%, #14532d 100%);
+            color: #fdf6e3;
+            padding: 8rem 2rem 6rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%23fcbf49" fill-opacity="0.1"><circle cx="30" cy="30" r="4"/></g></svg>');
+            animation: float 20s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(180deg); }
+        }
+
+        .hero-content {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero h1 {
+            font-size: 4rem;
+            font-weight: 900;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #fdf6e3 0%, #fcbf49 100%);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.1;
+        }
+
+        .hero p {
+            font-size: 1.5rem;
+            margin-bottom: 3rem;
+            opacity: 0.95;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border-radius: 15px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #fcbf49 0%, #f59e0b 100%);
+            color: #4a3621;
+            box-shadow: 0 6px 20px rgba(252, 191, 73, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(253, 246, 227, 0.1);
+            color: #fdf6e3;
+            border: 2px solid rgba(253, 246, 227, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 8px 25px rgba(252, 191, 73, 0.5);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(253, 246, 227, 0.2);
+            border-color: rgba(253, 246, 227, 0.5);
+        }
+
+        /* Features Section */
+        .features {
+            padding: 6rem 2rem;
+            background: #ffffff;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-title {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #14532d;
+            margin-bottom: 1rem;
+        }
+
+        .section-subtitle {
+            font-size: 1.25rem;
+            color: #6b7280;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 3rem;
+        }
+
+        .feature-card {
+            background: linear-gradient(135deg, #fdf6e3 0%, #f7f3e9 100%);
+            border-radius: 20px;
+            padding: 2.5rem;
+            text-align: center;
+            border: 1px solid rgba(20, 83, 45, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(252, 191, 73, 0.05) 0%, rgba(20, 83, 45, 0.05) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 40px rgba(74, 54, 33, 0.15);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            background: linear-gradient(135deg, #14532d 0%, #2f855a 100%);
+            color: #fcbf49;
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        .feature-icon .material-icons {
+            font-size: 2.5rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #14532d;
+            margin-bottom: 1rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        .feature-card p {
+            color: #6b7280;
+            font-size: 1.1rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Gallery Section */
+        .gallery {
+            padding: 6rem 2rem;
+            background: linear-gradient(135deg, #fdf6e3 0%, #f7f3e9 100%);
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .gallery-item {
+            background: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(74, 54, 33, 0.1);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(20, 83, 45, 0.1);
+        }
+
+        .gallery-item:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 40px rgba(74, 54, 33, 0.2);
+        }
+
+        .gallery-image {
+            width: 100%;
+            height: 250px;
+            background: linear-gradient(135deg, #14532d 0%, #2f855a 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fcbf49;
+            font-size: 4rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .gallery-image::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%23fcbf49" fill-opacity="0.1"><rect x="0" y="0" width="20" height="20"/><rect x="20" y="20" width="20" height="20"/></g></svg>');
+        }
+
+        .gallery-caption {
+            padding: 1.5rem;
+        }
+
+        .gallery-caption h4 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #14532d;
+            margin-bottom: 0.5rem;
+        }
+
+        .gallery-caption p {
+            color: #6b7280;
+            font-size: 0.95rem;
+        }
+
+        /* Statistics Section */
+        .stats {
+            background: linear-gradient(135deg, #14532d 0%, #2f855a 100%);
+            color: #fdf6e3;
+            padding: 6rem 2rem;
+            text-align: center;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 3rem;
+            margin-top: 3rem;
+        }
+
+        .stat-item {
+            background: rgba(253, 246, 227, 0.1);
+            border-radius: 16px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(253, 246, 227, 0.2);
+        }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 900;
+            color: #fcbf49;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            background: #ffffff;
+            padding: 6rem 2rem;
+            text-align: center;
+        }
+
+        .cta-content {
+            background: linear-gradient(135deg, #fdf6e3 0%, #f7f3e9 100%);
+            border-radius: 30px;
+            padding: 4rem 2rem;
+            border: 1px solid rgba(20, 83, 45, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%23fcbf49" fill-opacity="0.05"><circle cx="30" cy="30" r="4"/></g></svg>');
+            animation: float 15s ease-in-out infinite reverse;
+        }
+
+        .cta-content > * {
+            position: relative;
+            z-index: 2;
+        }
+
+        .cta-content h2 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #14532d;
+            margin-bottom: 1.5rem;
+        }
+
+        .cta-content p {
+            font-size: 1.25rem;
+            color: #6b7280;
+            margin-bottom: 2.5rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Footer */
+        .footer {
+            background: #4a3621;
+            color: #fdf6e3;
+            padding: 3rem 2rem 2rem;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 3rem;
+            margin-bottom: 2rem;
+        }
+
+        .footer-section h3 {
+            color: #fcbf49;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .footer-section p, .footer-section a {
+            color: rgba(253, 246, 227, 0.8);
+            text-decoration: none;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .footer-section a:hover {
+            color: #fcbf49;
+        }
+
+        .footer-bottom {
+            border-top: 1px solid rgba(253, 246, 227, 0.2);
+            padding-top: 2rem;
+            text-align: center;
+            color: rgba(253, 246, 227, 0.7);
+        }
+
+        /* Mobile Menu */
+        .mobile-menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: #fdf6e3;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .mobile-menu-toggle {
+                display: block;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero p {
+                font-size: 1.25rem;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 2rem;
+            }
+
+            .nav-container {
+                padding: 1rem;
+            }
+
+            .hero {
+                padding: 6rem 1rem 4rem;
+            }
+
+            .features, .gallery, .stats, .cta-section {
+                padding: 4rem 1rem;
+            }
+        }
+
+        /* Smooth scrolling */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Loading animation */
+        .fade-in {
+            animation: fadeIn 0.8s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <span class="material-icons">quiz</span>
+                PubKvíz
+            </a>
+            <div class="nav-links">
+                <a href="#about" class="nav-link">
+                    <span class="material-icons">info</span>
+                    O nás
+                </a>
+                <a href="#venues" class="nav-link">
+                    <span class="material-icons">place</span>
+                    Podniky
+                </a>
+                <a href="#gallery" class="nav-link">
+                    <span class="material-icons">photo_library</span>
+                    Galerie
+                </a>
+                <a href="/adminpanel.html" class="nav-link">
+                    <span class="material-icons">admin_panel_settings</span>
+                    Admin
+                </a>
+                <a href="/reservations.html" class="cta-button">
+                    <span class="material-icons">event_available</span>
+                    Rezervovat
+                </a>
+            </div>
+            <button class="mobile-menu-toggle">
+                <span class="material-icons">menu</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content fade-in">
+            <h1>Nejlepší kvízové večery v Praze</h1>
+            <p>Otestujte své znalosti, bavte se s přáteli a vyhrajte skvělé ceny v našich pravidelných pub kvízech napříč Prahou.</p>
+            <div class="hero-buttons">
+                <a href="/reservations.html" class="btn btn-primary">
+                    <span class="material-icons">event_available</span>
+                    Rezervovat místo
+                </a>
+                <a href="#about" class="btn btn-secondary">
+                    <span class="material-icons">expand_more</span>
+                    Zjistit více
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="about" class="features">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2 class="section-title">Proč si vybrat náš PubKvíz?</h2>
+                <p class="section-subtitle">Nabízíme nezapomenutelné kvízové zážitky v nejlepších podnicích Prahy</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">
+                        <span class="material-icons">groups</span>
+                    </div>
+                    <h3>Skvělá atmosféra</h3>
+                    <p>Užijte si večer plný smíchu, soutěžení a nových přátelství v příjemném prostředí našich partnerských podniků.</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">
+                        <span class="material-icons">psychology</span>
+                    </div>
+                    <h3>Rozmanité otázky</h3>
+                    <p>Od historie přes sport až po popkulturu - naše otázky pokrývají široké spektrum témat pro všechny typy hráčů.</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">
+                        <span class="material-icons">emoji_events</span>
+                    </div>
+                    <h3>Skvělé ceny</h3>
+                    <p>Vítězové si odnesou nejen slávu, ale i hodnotné ceny a poukazy do našich partnerských podniků.</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">
+                        <span class="material-icons">schedule</span>
+                    </div>
+                    <h3>Pravidelné termíny</h3>
+                    <p>Kvízy pořádáme každý týden v různých podnicích, takže si můžete vybrat termín, který vám vyhovuje.</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">
+                        <span class="material-icons">smartphone</span>
+                    </div>
+                    <h3>Snadná rezervace</h3>
+                    <p>Rezervujte si místo pro váš tým jednoduše online a získejte potvrzení okamžitě.</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">
+                        <span class="material-icons">place</span>
+                    </div>
+                    <h3>Skvělé lokace</h3>
+                    <p>Spolupracujeme pouze s nejlepšími podniky v Praze, které nabízí kvalitní jídlo, pití a atmosféru.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Statistics -->
+    <section class="stats">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2 class="section-title">Naše čísla mluví za vše</h2>
+                <p class="section-subtitle">Jsme součástí pražské kvízové komunity už několik let</p>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-item fade-in">
+                    <span class="stat-number">500+</span>
+                    <span class="stat-label">Spokojených týmů</span>
+                </div>
+                <div class="stat-item fade-in">
+                    <span class="stat-number">150+</span>
+                    <span class="stat-label">Uskutečněných kvízů</span>
+                </div>
+                <div class="stat-item fade-in">
+                    <span class="stat-number">12</span>
+                    <span class="stat-label">Partnerských podniků</span>
+                </div>
+                <div class="stat-item fade-in">
+                    <span class="stat-number">4.8★</span>
+                    <span class="stat-label">Průměrné hodnocení</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Gallery Section -->
+    <section id="gallery" class="gallery">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2 class="section-title">Naše podniky</h2>
+                <p class="section-subtitle">Objevte skvělé lokace, kde pořádáme naše kvízy</p>
+            </div>
+            <div class="gallery-grid">
+                <div class="gallery-item fade-in">
+                    <div class="gallery-image">
+                        <span class="material-icons">local_bar</span>
+                    </div>
+                    <div class="gallery-caption">
+                        <h4>The Pub Praha</h4>
+                        <p>Tradiční anglický pub v centru Prahy s autentickou atmosférou a širokou nabídkou piv.</p>
+                    </div>
+                </div>
+                <div class="gallery-item fade-in">
+                    <div class="gallery-image">
+                        <span class="material-icons">restaurant</span>
+                    </div>
+                    <div class="gallery-caption">
+                        <h4>Bistro U Fleku</h4>
+                        <p>Historická hospoda s vlastní pivovarskou tradicí a vynikající českou kuchyní.</p>
+                    </div>
+                </div>
+                <div class="gallery-item fade-in">
+                    <div class="gallery-image">
+                        <span class="material-icons">sports_bar</span>
+                    </div>
+                    <div class="gallery-caption">
+                        <h4>Sports Bar Arena</h4>
+                        <p>Moderní sports bar s velkými obrazovkami a živou atmosférou během sportovních přenosů.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-content fade-in">
+                <h2>Připraveni na výzvu?</h2>
+                <p>Sestavte svůj tým, vyberte si termín a přídte si užít nezapomenutelný večer plný zábavy a soutěžení!</p>
+                <div class="hero-buttons">
+                    <a href="/reservations.html" class="btn btn-primary">
+                        <span class="material-icons">group_add</span>
+                        Rezervovat nyní
+                    </a>
+                    <a href="/quiz-history.html" class="btn btn-secondary">
+                        <span class="material-icons">history</span>
+                        Historie kvízů
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>PubKvíz Praha</h3>
+                <p>Nejlepší kvízové večery v hlavním městě. Spojujeme lidi, zábavu a znalosti už od roku 2020.</p>
+            </div>
+            <div class="footer-section">
+                <h3>Kontakt</h3>
+                <a href="mailto:info@pubkviz.cz">info@pubkviz.cz</a>
+                <a href="tel:+420123456789">+420 123 456 789</a>
+                <p>Praha, Česká republika</p>
+            </div>
+            <div class="footer-section">
+                <h3>Užitečné odkazy</h3>
+                <a href="/reservations.html">Rezervace</a>
+                <a href="/quiz-history.html">Historie kvízů</a>
+                <a href="/adminpanel.html">Administrace</a>
+            </div>
+            <div class="footer-section">
+                <h3>Sledujte nás</h3>
+                <a href="#">Facebook</a>
+                <a href="#">Instagram</a>
+                <a href="#">Twitter</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2024 PubKvíz Praha. Všechna práva vyhrazena.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Simple fade-in animation on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        // Observe all fade-in elements
+        document.addEventListener('DOMContentLoaded', () => {
+            const fadeElements = document.querySelectorAll('.fade-in');
+            fadeElements.forEach(el => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(20px)';
+                el.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
+                observer.observe(el);
+            });
+
+            // Navbar scroll effect
+            const navbar = document.querySelector('.navbar');
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 100) {
+                    navbar.style.background = 'rgba(74, 54, 33, 0.98)';
+                    navbar.style.boxShadow = '0 2px 20px rgba(74, 54, 33, 0.3)';
+                } else {
+                    navbar.style.background = 'rgba(74, 54, 33, 0.95)';
+                    navbar.style.boxShadow = 'none';
+                }
+            });
+
+            // Smooth scroll for anchor links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+</body>
 </html>

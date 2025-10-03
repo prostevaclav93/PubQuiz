@@ -56,7 +56,16 @@
                 </td>
                 <td class="team-cell">
                   <div class="team-info">
-                    <span class="team-name">{{ team.team_name }}</span>
+                    <div class="team-name-container">
+                      <span class="team-name">{{ team.team_name }}</span>
+                      <div v-if="getRankChange(team.id, team.rank)" class="rank-change-indicator"
+                           :class="getRankChange(team.id, team.rank).direction">
+                        <span class="material-icons">
+                          {{ getRankChange(team.id, team.rank).direction === 'up' ? 'trending_up' : 'trending_down' }}
+                        </span>
+                        <span class="change-amount">{{ getRankChange(team.id, team.rank).change }}</span>
+                      </div>
+                    </div>
                     <span class="player-count">{{ team.number_of_players }} {{ getPlayerWord(team.number_of_players) }}</span>
                   </div>
                 </td>
@@ -95,6 +104,41 @@ const quizInstanceId = ref(null);
 const supabaseChannels = ref([]);
 
 // Computed
+const previousRoundRankings = computed(() => {
+  if (!quizTeams.value || !currentQuizInstance.value || currentQuizInstance.value.current_round <= 1) {
+    return new Map();
+  }
+  
+  const previousRound = currentQuizInstance.value.current_round - 1;
+  
+  const teams = [...quizTeams.value]
+    .map(quizTeam => ({
+      ...quizTeam,
+      total: calculateTotalUpToRound(quizTeam.id, previousRound),
+      totalRegularScore: calculateTotalRegularScoreUpToRound(quizTeam.id, previousRound)
+    }))
+    .sort((a, b) => {
+      if (b.total !== a.total) {
+        return b.total - a.total;
+      }
+      return b.totalRegularScore - a.totalRegularScore;
+    });
+  
+  const rankMap = new Map();
+  for (let i = 0; i < teams.length; i++) {
+    if (i === 0) {
+      teams[i].rank = 1;
+    } else if (teams[i].total === teams[i - 1].total && teams[i].totalRegularScore === teams[i - 1].totalRegularScore) {
+      teams[i].rank = teams[i - 1].rank;
+    } else {
+      teams[i].rank = i + 1;
+    }
+    rankMap.set(teams[i].id, teams[i].rank);
+  }
+  
+  return rankMap;
+});
+
 const sortedTeams = computed(() => {
   if (!quizTeams.value) return [];
   
@@ -214,6 +258,18 @@ const getScoreValue = (quizTeamId, roundNum, type) => {
   return score ? score[type] : (type === 'regular_score' ? 0 : 0);
 };
 
+const calculateTotalUpToRound = (quizTeamId, maxRound) => {
+  return scores.value
+    .filter(s => s.quiz_team_id === quizTeamId && s.round_number <= maxRound)
+    .reduce((sum, score) => sum + (score.regular_score || 0) + (score.bonus_score || 0), 0);
+};
+
+const calculateTotalRegularScoreUpToRound = (quizTeamId, maxRound) => {
+  return scores.value
+    .filter(s => s.quiz_team_id === quizTeamId && s.round_number <= maxRound)
+    .reduce((sum, score) => sum + (score.regular_score || 0), 0);
+};
+
 const calculateTotal = (quizTeamId) => {
   return scores.value
     .filter(s => s.quiz_team_id === quizTeamId)
@@ -238,6 +294,23 @@ const getRankClass = (rank) => {
   if (rank === 2) return 'rank-silver';
   if (rank === 3) return 'rank-bronze';
   return 'rank-regular';
+};
+
+const getRankChange = (teamId, currentRank) => {
+  if (!previousRoundRankings.value.has(teamId) || !currentQuizInstance.value || currentQuizInstance.value.current_round <= 1) {
+    return null;
+  }
+  
+  const previousRank = previousRoundRankings.value.get(teamId);
+  const change = previousRank - currentRank; // Positive means moved up, negative means moved down
+  
+  if (change > 0) {
+    return { direction: 'up', change };
+  } else if (change < 0) {
+    return { direction: 'down', change: Math.abs(change) };
+  }
+  
+  return null; // No change
 };
 
 const getPlayerWord = (numberOfPlayers) => {
@@ -535,6 +608,12 @@ const getPlayerWord = (numberOfPlayers) => {
   gap: 0.25rem;
 }
 
+.team-name-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .team-name {
   font-weight: 700;
   font-size: 1.1rem;
@@ -542,6 +621,39 @@ const getPlayerWord = (numberOfPlayers) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.rank-change-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.8;
+  transition: all 0.3s ease;
+}
+
+.rank-change-indicator.up {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.rank-change-indicator.down {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.rank-change-indicator .material-icons {
+  font-size: 0.875rem;
+}
+
+.change-amount {
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 .player-count {
@@ -652,6 +764,21 @@ const getPlayerWord = (numberOfPlayers) => {
     font-size: 1rem;
   }
   
+  .team-name-container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .rank-change-indicator {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+  }
+  
+  .rank-change-indicator .material-icons {
+    font-size: 0.75rem;
+  }
+  
   .waiting-animation-question {
     font-size: 6rem;
   }
@@ -682,6 +809,19 @@ const getPlayerWord = (numberOfPlayers) => {
   
   .team-column {
     width: 150px;
+  }
+  
+  .rank-change-indicator {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.3rem;
+  }
+  
+  .rank-change-indicator .material-icons {
+    font-size: 0.7rem;
+  }
+  
+  .change-amount {
+    font-size: 0.65rem;
   }
 }
 </style>

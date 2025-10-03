@@ -1,7 +1,7 @@
 <template>
   <div class="admin-panel">
     <MessageBox ref="messageBox" />
-    
+
     <!-- Password Protection Modal -->
     <div v-if="!isAuthenticated && showPasswordModal" class="modal-overlay password-modal-overlay">
       <div class="password-modal">
@@ -18,15 +18,8 @@
           <form @submit.prevent="authenticateUser">
             <div class="form-section">
               <label class="form-label">Heslo</label>
-              <input 
-                type="password" 
-                v-model="passwordInput" 
-                class="text-input password-input"
-                placeholder="Zadejte administrační heslo"
-                required
-                autofocus
-                @keyup.enter="authenticateUser"
-              />
+              <input type="password" v-model="passwordInput" class="text-input password-input"
+                placeholder="Zadejte administrační heslo" required autofocus @keyup.enter="authenticateUser" />
             </div>
             <div class="password-actions">
               <button type="submit" class="button primary large">
@@ -38,7 +31,118 @@
         </div>
       </div>
     </div>
-    
+
+    <!-- Results Preview Modal -->
+    <div v-if="showPreviewModal" class="modal-overlay preview-modal-overlay">
+      <div class="preview-modal">
+        <div class="preview-modal-header">
+          <div class="header-icon">
+            <span class="material-icons">preview</span>
+          </div>
+          <div class="header-info">
+            <h2>Náhled výsledků - Kolo {{ currentQuizInstance?.current_round }}</h2>
+            <p>Zkontrolujte výsledky před zobrazením na tabuli</p>
+          </div>
+          <button @click="closePreviewModal" class="close-button">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+
+        <div class="preview-modal-body">
+          <div class="preview-results">
+            <div class="results-header">
+              <h3>Pořadí týmů po {{ currentQuizInstance?.current_round }}. kole</h3>
+              <div class="results-count">{{ sortedTeamsForPreview.length }} týmů</div>
+            </div>
+
+            <div class="preview-table">
+              <div class="preview-table-header">
+                <div class="col-rank">Pořadí</div>
+                <div class="col-team">Tým</div>
+                <div class="col-round-score">Kolo {{ currentQuizInstance?.current_round }}</div>
+                <div class="col-total">Celkem</div>
+              </div>
+
+              <div v-for="(team, index) in sortedTeamsForPreview" :key="team.id"
+                :class="['preview-table-row', { 'highlighted': index >= sortedTeamsForPreview.length - (currentQuizInstance?.revealed_index || 0) }]">
+                <div class="col-rank">
+                  <span class="rank-badge" :class="getRankClass(team.rank)">
+                    {{ getRankEmoji(team.rank) }}
+                  </span>
+                </div>
+                <div class="col-team">
+                  <div class="team-info">
+                    <span class="team-name">{{ team.team_name }}</span>
+                    <span class="team-players">{{ team.number_of_players }} hráčů</span>
+                  </div>
+                </div>
+                <div class="col-round-score">
+                  <div class="round-score-display">
+                    <span class="regular-score">{{ getCurrentRoundScore(team, 'regular_score') }}</span>
+                    <span v-if="getCurrentRoundScore(team, 'bonus_score')" class="bonus-score">+1B</span>
+                  </div>
+                </div>
+                <div class="col-total">
+                  <span class="total-score">{{ team.total }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview-modal-footer">
+          <div class="preview-controls">
+            <div class="control-section">
+              <h4>Ovládání zobrazení</h4>
+              <div class="control-buttons">
+                <button v-if="!currentQuizInstance?.is_revealing" @click="startRevealing" class="button success">
+                  <span class="material-icons">play_arrow</span>
+                  Začít odhalování
+                </button>
+
+                <button v-else-if="currentQuizInstance?.revealed_index < quizTeams.length" @click="nextDisplayTeam"
+                  class="button primary">
+                  <span class="material-icons">arrow_forward</span>
+                  Další tým ({{ currentQuizInstance?.revealed_index }}/{{ quizTeams.length }})
+                </button>
+
+                <button v-else @click="resetDisplay" class="button secondary">
+                  <span class="material-icons">replay</span>
+                  Reset zobrazení
+                </button>
+
+                <button @click="openDisplayBoard" class="button info">
+                  <span class="material-icons">tv</span>
+                  Zobrazení
+                </button>
+              </div>
+            </div>
+
+            <div class="control-section">
+              <h4>Pokračování</h4>
+              <div class="control-buttons">
+                <button v-if="currentQuizInstance?.revealed_index >= quizTeams.length && !isQuizFinished"
+                  @click="proceedToNextRound" class="button success">
+                  <span class="material-icons">skip_next</span>
+                  Další kolo ({{ (currentQuizInstance?.current_round || 0) + 1 }})
+                </button>
+
+                <button v-if="isQuizFinished" @click="proceedToFinishQuiz" class="button warning">
+                  <span class="material-icons">emoji_events</span>
+                  Dokončit kvíz
+                </button>
+
+                <button @click="closePreviewModal" class="button secondary">
+                  <span class="material-icons">edit</span>
+                  Upravit skóre
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Header Section -->
     <div v-if="isAuthenticated" class="page-header">
       <div class="header-content">
@@ -48,7 +152,7 @@
             <span>Historie</span>
           </button>
         </div>
-        
+
         <div class="header-center">
           <div class="header-icon">
             <span class="material-icons">settings</span>
@@ -63,7 +167,7 @@
             </p>
           </div>
         </div>
-        
+
         <div class="header-right">
           <button :class="['action-button', { 'active': showReservations }]" @click="toggleReservations">
             <span class="material-icons">group_add</span>
@@ -94,13 +198,8 @@
           <div class="settings-section">
             <h3>Správa míst</h3>
             <div class="input-row">
-              <input 
-                type="text" 
-                v-model="newPlaceName" 
-                placeholder="Název místa" 
-                @keyup.enter="addPlace" 
-                class="text-input" 
-              />
+              <input type="text" v-model="newPlaceName" placeholder="Název místa" @keyup.enter="addPlace"
+                class="text-input" />
               <button class="button primary" @click="addPlace">
                 <span class="material-icons">add</span>
                 Přidat
@@ -111,13 +210,8 @@
           <div class="settings-section">
             <h3>Správa globálních týmů</h3>
             <div class="input-row">
-              <input 
-                type="text" 
-                v-model="newTeamName" 
-                placeholder="Název nového týmu" 
-                @keyup.enter="addGlobalTeam" 
-                class="text-input" 
-              />
+              <input type="text" v-model="newTeamName" placeholder="Název nového týmu" @keyup.enter="addGlobalTeam"
+                class="text-input" />
               <button class="button primary" @click="addGlobalTeam">
                 <span class="material-icons">add</span>
                 Přidat
@@ -127,11 +221,18 @@
         </div>
       </div>
     </div>
-    
+
     <!-- Reservations Modal -->
     <div v-if="isAuthenticated && showReservations" class="modal-overlay">
       <div class="reservations-modal">
         <ReservationsAdmin @close="toggleReservations" />
+      </div>
+    </div>
+
+    <!-- History Modal -->
+    <div v-if="isAuthenticated && showHistory" class="modal-overlay">
+      <div class="history-modal">
+        <QuizHistory @close="toggleHistory" />
       </div>
     </div>
 
@@ -148,7 +249,7 @@
             <p>Vyberte existující instanci nebo vytvořte novou pro správu rezervací</p>
           </div>
         </div>
-        
+
         <div class="card-content">
           <!-- Existing Quiz Selection -->
           <div v-if="activeQuizInstances.length > 0" class="form-section">
@@ -160,17 +261,14 @@
                   {{ formatQuizInstanceDate(instance) }}
                 </option>
               </select>
-              <button 
-                @click="loadExistingQuizInstance" 
-                :disabled="!selectedExistingQuizInstanceId" 
-                class="button secondary"
-              >
+              <button @click="loadExistingQuizInstance" :disabled="!selectedExistingQuizInstanceId"
+                class="button secondary">
                 <span class="material-icons">search</span>
                 Vybrat
               </button>
             </div>
           </div>
-          
+
           <!-- New Quiz Creation -->
           <div class="form-section">
             <label class="form-label">Vytvořit novou instanci kvízu</label>
@@ -183,11 +281,8 @@
               </select>
               <input type="date" v-model="quizDate" class="text-input" />
               <input type="time" v-model="quizTime" class="text-input" />
-              <button 
-                @click="createNewQuizInstance" 
-                :disabled="!selectedPlaceId || !quizDate || !quizTime" 
-                class="button primary"
-              >
+              <button @click="createNewQuizInstance" :disabled="!selectedPlaceId || !quizDate || !quizTime"
+                class="button primary">
                 <span class="material-icons">create_new_folder</span>
                 Vytvořit
               </button>
@@ -207,43 +302,50 @@
             <p><strong>{{ currentQuizInstance.place_name }}</strong> - {{ formattedQuizDate }}</p>
           </div>
         </div>
-        
+
         <div class="card-content">
+
           <!-- Add Team Section -->
           <div class="form-section">
             <label class="form-label">Přidat globální tým</label>
-            <div class="input-row">
-              <select v-model="selectedGlobalTeamId" class="select-input">
-                <option value="" disabled>Vyberte tým...</option>
-                <option v-for="team in availableGlobalTeams" :key="team.id" :value="team.id">
-                  {{ team.name }}
-                </option>
-              </select>
-              <input 
-                type="number" 
-                placeholder="Počet hráčů" 
-                v-model="globalTeamPlayers" 
-                min="1" 
-                class="text-input number-input" 
-              />
-              <button 
-                @click="addTeamToQuiz" 
-                :disabled="!selectedGlobalTeamId || !globalTeamPlayers" 
-                class="button secondary"
-              >
-                <span class="material-icons">group_add</span>
-                Přidat
-              </button>
+            <div class="input-row" style="align-items: flex-end;">
+              <div style="flex: 2;">
+                <label
+                  style="display: block; font-weight: 600; color: #14532d; margin-bottom: 0.5rem; font-size: 0.9rem;">Vyberte
+                  tým</label>
+                <select v-model="selectedGlobalTeamId" class="select-input">
+                  <option value="" disabled>Vyberte tým...</option>
+                  <option v-for="team in availableGlobalTeams" :key="team.id" :value="team.id">
+                    {{ team.name }}
+                  </option>
+                </select>
+              </div>
+              <div style="flex: 0;">
+                <label
+                  style="display: block; font-weight: 600; color: #14532d; margin-bottom: 0.5rem; font-size: 0.9rem;">Počet
+                  hráčů</label>
+                <input type="number" placeholder="Počet hráčů" v-model="globalTeamPlayers" min="1"
+                  class="text-input number-input" />
+              </div>
+              <div style="flex: 1;">
+                <label
+                  style="display: block; font-weight: 600; color: transparent; margin-bottom: 0.5rem; font-size: 0.9rem;">.</label>
+                <button @click="addTeamToQuiz" :disabled="!selectedGlobalTeamId || !globalTeamPlayers"
+                  class="button secondary">
+                  <span class="material-icons">group_add</span>
+                  Přidat
+                </button>
+              </div>
             </div>
           </div>
-          
+
           <!-- Teams List -->
           <div class="teams-section">
             <div class="section-header">
               <h3>Týmy v kvízu</h3>
               <div class="team-count">{{ quizTeams.length }}</div>
             </div>
-            
+
             <div v-if="quizTeams.length > 0" class="teams-table">
               <div class="table-header">
                 <div class="col-team">Tým</div>
@@ -254,16 +356,13 @@
                 <div class="col-team">{{ team.team_name }}</div>
                 <div class="col-players">{{ team.number_of_players }}</div>
                 <div class="col-actions">
-                  <button 
-                    class="button danger small" 
-                    @click="confirmRemoveTeamFromQuiz(team.id)"
-                  >
+                  <button class="button danger small" @click="confirmRemoveTeamFromQuiz(team.id)">
                     <span class="material-icons">person_remove</span>
                   </button>
                 </div>
               </div>
             </div>
-            
+
             <div v-else class="empty-state">
               <span class="material-icons">group_off</span>
               <p>Do kvízu zatím nebyly přidány žádné týmy</p>
@@ -272,11 +371,7 @@
 
           <!-- Action Buttons -->
           <div class="actions-section">
-            <button 
-              @click="startQuiz" 
-              :disabled="quizTeams.length === 0" 
-              class="button success large"
-            >
+            <button @click="startQuiz" :disabled="quizTeams.length === 0" class="button success large">
               <span class="material-icons">play_arrow</span>
               Začít kvíz!
             </button>
@@ -291,7 +386,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- Quiz Control -->
       <div v-else-if="currentQuizInstance && isQuizStarted" class="content-card">
         <div class="card-header">
@@ -303,7 +398,7 @@
             <p>Kolo {{ currentQuizInstance.current_round }} z {{ MAX_ROUNDS_LIMIT }}</p>
           </div>
         </div>
-        
+
         <div class="card-content">
           <!-- Control Buttons -->
           <div class="control-panel">
@@ -311,33 +406,22 @@
               <span class="material-icons">tv</span>
               Zobrazení
             </button>
-            
-            <button 
-              v-if="isRoundInProgress" 
-              :disabled="!canEndCurrentRound" 
-              class="button warning" 
+
+            <button v-if="isRoundInProgress" :disabled="!canEndCurrentRound" class="button warning"
               @click="confirmEndRound"
-              :title="!canEndCurrentRound ? 'Nejprve zadejte skóre pro všechny týmy v aktuálním kole' : ''"
-            >
+              :title="!canEndCurrentRound ? 'Nejprve zadejte skóre pro všechny týmy v aktuálním kole' : ''">
               <span class="material-icons">stop</span>
               Ukončit kolo
             </button>
-            
-            <button 
-              v-else-if="isRevealingScores" 
-              class="button secondary" 
-              @click="nextDisplayTeam"
-            >
+
+            <button v-else-if="isRevealingScores" class="button secondary" @click="nextDisplayTeam">
               <span class="material-icons">arrow_forward</span>
               Další tým ({{ currentQuizInstance.revealed_index }}/{{ quizTeams.length }})
             </button>
-            
+
             <div v-else-if="isReadyForNextRound" class="button-group">
-              <button 
-                @click="goToNextRound" 
-                :disabled="isQuizFinished" 
-                :class="['button', isQuizFinished ? 'secondary' : 'success']"
-              >
+              <button @click="goToNextRound" :disabled="isQuizFinished"
+                :class="['button', isQuizFinished ? 'secondary' : 'success']">
                 <span class="material-icons">skip_next</span>
                 {{ isQuizFinished ? 'Kvíz u konce' : `Další kolo (${(currentQuizInstance.current_round || 0) + 1})` }}
               </button>
@@ -346,7 +430,7 @@
                 Reset zobrazení
               </button>
             </div>
-            
+
             <button @click="confirmFinishQuiz" class="button danger">
               <span class="material-icons">archive</span>
               Ukončit kvíz
@@ -358,56 +442,43 @@
             <div class="section-header">
               <h3>Přehled skóre</h3>
             </div>
-            
+
             <div class="scores-table">
               <div class="table-header">
                 <div class="col-team">Tým</div>
-                <div v-for="n in MAX_ROUNDS_LIMIT" :key="n" 
-                     :class="['col-round', { 'current': n === currentQuizInstance?.current_round }]">
+                <div v-for="n in MAX_ROUNDS_LIMIT" :key="n"
+                  :class="['col-round', { 'current': n === currentQuizInstance?.current_round }]">
                   Kolo {{ n }}
                 </div>
                 <div class="col-total">Celkem</div>
               </div>
-              
+
               <div v-for="team in quizTeams" :key="team.id" class="table-row">
                 <div class="col-team">
                   <div class="team-info">
                     <span class="team-name">{{ team.team_name }}</span>
                     <span class="team-players">{{ team.number_of_players }} hráčů</span>
                   </div>
-                  <button 
-                    class="remove-team-btn" 
-                    @click="confirmRemoveTeamFromQuiz(team.id)"
-                    v-if="!isQuizStarted"
-                  >
+                  <button class="remove-team-btn" @click="confirmRemoveTeamFromQuiz(team.id)" v-if="!isQuizStarted">
                     <span class="material-icons">person_remove</span>
                   </button>
                 </div>
-                
+
                 <!-- Points updating -->
-                <div v-for="n in MAX_ROUNDS_LIMIT" :key="n" 
-                     :class="['col-round', { 'current': n === currentQuizInstance?.current_round }]">
+                <div v-for="n in MAX_ROUNDS_LIMIT" :key="n"
+                  :class="['col-round', { 'current': n === currentQuizInstance?.current_round }]">
                   <div class="score-controls">
-                    <input 
-                      type="number" 
-                      :value="getScoreValue(team.id, n, 'regular_score')" 
-                      @input="e => updateScore(team.id, n, 'regular_score', e.target.value)" 
-                      :disabled="isRoundLocked(n)" 
-                      class="score-input" 
-                      min="0"
-                      step="0.5"
-                      placeholder=""
-                    />
-                    <button 
-                      @click="toggleBonus(team.id, n)" 
+                    <input type="number" :value="getScoreValue(team.id, n, 'regular_score')"
+                      @input="e => updateScore(team.id, n, 'regular_score', e.target.value)"
+                      :disabled="isRoundLocked(n)" class="score-input" min="0" step="0.5" placeholder="" />
+                    <button @click="toggleBonus(team.id, n)"
                       :class="['bonus-btn', { 'active': getScoreValue(team.id, n, 'bonus_score') }]"
-                      :disabled="isRoundLocked(n)"
-                    >
+                      :disabled="isRoundLocked(n)">
                       +1B
                     </button>
                   </div>
                 </div>
-                
+
                 <div class="col-total">
                   <span class="total-score">{{ calculateTotal(team) }}</span>
                 </div>
@@ -426,6 +497,7 @@ import { supabase } from '../supabase/supabaseClient';
 import MessageBox from './MessageBox.vue';
 import ReservationsAdmin from './ReservationsAdmin.vue';
 import { ADMIN_PASSWORD } from '../config';
+import QuizHistory from './QuizHistory.vue';
 
 const messageBox = ref(null);
 
@@ -435,6 +507,9 @@ const MAX_ROUNDS_LIMIT = 5;
 const isAuthenticated = ref(false);
 const showPasswordModal = ref(true);
 const passwordInput = ref('');
+
+// === Preview Modal State ===
+const showPreviewModal = ref(false);
 
 // === State management ===
 const places = ref([]);
@@ -451,9 +526,45 @@ const allTeams = ref([]);
 const selectedGlobalTeamId = ref('');
 const globalTeamPlayers = ref(4);
 const selectedExistingQuizInstanceId = ref('');
+const showHistory = ref(false);
 
 const showSettings = ref(false);
 const showReservations = ref(false);
+
+// === Preview Modal Computed Properties ===
+const sortedTeamsForPreview = computed(() => {
+  if (!quizTeams.value || quizTeams.value.length === 0) return [];
+
+  const teams = [...quizTeams.value]
+    .map(team => ({
+      ...team,
+      total: calculateTotal(team),
+      totalRegularScore: calculateTotalRegularScore(team)
+    }))
+    .sort((a, b) => {
+      // First sort by total score
+      if (b.total !== a.total) {
+        return b.total - a.total;
+      }
+      // If total scores are equal, sort by regular score (higher regular score ranks better)
+      return b.totalRegularScore - a.totalRegularScore;
+    });
+
+  // Calculate ranks considering ties (same total AND same regular score)
+  for (let i = 0; i < teams.length; i++) {
+    if (i === 0) {
+      teams[i].rank = 1;
+    } else if (teams[i].total === teams[i - 1].total && teams[i].totalRegularScore === teams[i - 1].totalRegularScore) {
+      // Same total score AND same regular score, same rank
+      teams[i].rank = teams[i - 1].rank;
+    } else {
+      // Different total score OR different regular score, different rank
+      teams[i].rank = i + 1;
+    }
+  }
+
+  return teams;
+});
 
 // === Password Protection Methods ===
 const authenticateUser = () => {
@@ -476,6 +587,75 @@ const logout = () => {
   currentQuizInstance.value = null;
   isQuizStarted.value = false;
   messageBox.value.info('Informace', 'Byli jste odhlášeni z administrace.');
+};
+
+// === Preview Modal Methods ===
+const showPreview = () => {
+  showPreviewModal.value = true;
+};
+
+const closePreviewModal = () => {
+  showPreviewModal.value = false;
+};
+
+const startRevealing = async () => {
+  if (!currentQuizInstance.value) return;
+
+  const { error } = await supabase
+    .from('quiz_instances')
+    .update({
+      is_revealing: true,
+      revealed_index: 0
+    })
+    .eq('id', currentQuizInstance.value.id);
+
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se spustit odhalování.');
+  } else {
+    currentQuizInstance.value.is_revealing = true;
+    currentQuizInstance.value.revealed_index = 0;
+    messageBox.value.success('Úspěch', 'Odhalování bylo spuštěno.');
+  }
+};
+
+const proceedToNextRound = async () => {
+  closePreviewModal();
+  await goToNextRound();
+};
+
+const proceedToFinishQuiz = async () => {
+  closePreviewModal();
+  await confirmFinishQuiz();
+};
+
+const getCurrentRoundScore = (team, scoreType) => {
+  if (!team.scores || !currentQuizInstance.value) return 0;
+
+  const currentRound = currentQuizInstance.value.current_round;
+  const score = team.scores.find(s => s.round_number === currentRound);
+  return score ? (score[scoreType] || 0) : 0;
+};
+
+const calculateTotalRegularScore = (team) => {
+  if (!team.scores || team.scores.length === 0) return 0;
+
+  return team.scores.reduce((total, score) => {
+    return total + (score.regular_score || 0);
+  }, 0);
+};
+
+const getRankEmoji = (rank) => {
+  if (rank === 1) return '🥇';
+  if (rank === 2) return '🥈';
+  if (rank === 3) return '🥉';
+  return String(rank);
+};
+
+const getRankClass = (rank) => {
+  if (rank === 1) return 'rank-gold';
+  if (rank === 2) return 'rank-silver';
+  if (rank === 3) return 'rank-bronze';
+  return 'rank-regular';
 };
 
 // === Computed properties ===
@@ -512,9 +692,9 @@ const isRoundInProgress = computed(() => {
 
 const canEndCurrentRound = computed(() => {
   if (!currentQuizInstance.value || !isRoundInProgress.value) return false;
-  
+
   const currentRound = currentQuizInstance.value.current_round;
-  
+
   // Check if all teams have at least some score entered for the current round
   return quizTeams.value.every(team => {
     const roundScore = team.scores.find(s => s.round_number === currentRound);
@@ -568,7 +748,7 @@ onMounted(() => {
     isAuthenticated.value = true;
     showPasswordModal.value = false;
   }
-  
+
   fetchPlaces();
   fetchActiveQuizInstances();
   fetchGlobalTeams();
@@ -650,19 +830,19 @@ const createNewQuizInstance = async () => {
 
     console.log('Created quiz instance:', data);
 
-    currentQuizInstance.value = { 
-        ...data, 
-        place_name: data.places.name,
-        current_round: 0,
-        is_revealing: false,
-        revealed_index: 0
+    currentQuizInstance.value = {
+      ...data,
+      place_name: data.places.name,
+      current_round: 0,
+      is_revealing: false,
+      revealed_index: 0
     };
     isQuizStarted.value = false;
-    
+
     // For NEW quiz instances, just load existing quiz teams (if any)
     // Don't try to load from reservations yet - that should happen when loading existing quiz
     await fetchQuizTeams();
-    
+
     messageBox.value.success('Úspěch', 'Nová instance kvízu byla úspěšně vytvořena.');
   } catch (err) {
     console.error('Unexpected error creating quiz instance:', err);
@@ -671,74 +851,74 @@ const createNewQuizInstance = async () => {
 };
 
 const fetchReservationsAndAddToQuiz = async (quizInstanceId) => {
-    try {
-        console.log('Loading teams from reservations for quiz instance:', quizInstanceId);
-        
-        // Load reservations that are already linked to this quiz instance
-        const { data: reservations, error: fetchError } = await supabase
-            .from('reservations')
-            .select('team_id, number_of_players')
-            .eq('quiz_instance_id', quizInstanceId);
-            
-        if (fetchError) {
-            console.error('Error fetching reservations:', fetchError);
-            messageBox.value.error('Chyba', 'Nepodařilo se načíst rezervace pro přidání do kvízu.');
-            return;
-        }
-        
-        console.log('Found reservations:', reservations);
-        
-        if (reservations.length === 0) {
-            console.log('No reservations found for this quiz instance');
-            return; // Don't show message for empty reservations
-        }
+  try {
+    console.log('Loading teams from reservations for quiz instance:', quizInstanceId);
 
-        // Check if these teams are already in quiz_teams to avoid duplicates
-        const { data: existingQuizTeams, error: existingError } = await supabase
-            .from('quiz_teams')
-            .select('team_id')
-            .eq('quiz_instance_id', quizInstanceId);
-            
-        if (existingError) {
-            console.error('Error checking existing quiz teams:', existingError);
-            return;
-        }
-        
-        const existingTeamIds = existingQuizTeams?.map(qt => qt.team_id) || [];
-        console.log('Existing team IDs in quiz_teams:', existingTeamIds);
+    // Load reservations that are already linked to this quiz instance
+    const { data: reservations, error: fetchError } = await supabase
+      .from('reservations')
+      .select('team_id, number_of_players')
+      .eq('quiz_instance_id', quizInstanceId);
 
-        // Filter out teams that are already in quiz_teams
-        const newReservations = reservations.filter(res => !existingTeamIds.includes(res.team_id));
-        
-        if (newReservations.length === 0) {
-            console.log('All reservation teams already added to quiz');
-            return; // Don't show message if teams already exist
-        }
-
-        // Convert new reservations to quiz_teams
-        const teamsToInsert = newReservations.map(reservation => ({
-            quiz_instance_id: quizInstanceId,
-            team_id: reservation.team_id,
-            number_of_players: reservation.number_of_players,
-        }));
-
-        console.log('Inserting new teams into quiz_teams:', teamsToInsert);
-
-        const { error: insertError } = await supabase
-            .from('quiz_teams')
-            .insert(teamsToInsert);
-
-        if (insertError) {
-            console.error('Insert error:', insertError);
-            messageBox.value.error('Chyba', 'Nepodařilo se přidat týmy z rezervací do kvízu.');
-        } else {
-            console.log(`Successfully added ${teamsToInsert.length} teams to quiz_teams`);
-            messageBox.value.success('Úspěch', `Bylo přidáno ${teamsToInsert.length} týmů z existujících rezervací.`);
-        }
-    } catch (error) {
-        console.error('Unexpected error in fetchReservationsAndAddToQuiz:', error);
-        messageBox.value.error('Chyba', 'Neočekávaná chyba při načítání rezervací.');
+    if (fetchError) {
+      console.error('Error fetching reservations:', fetchError);
+      messageBox.value.error('Chyba', 'Nepodařilo se načíst rezervace pro přidání do kvízu.');
+      return;
     }
+
+    console.log('Found reservations:', reservations);
+
+    if (reservations.length === 0) {
+      console.log('No reservations found for this quiz instance');
+      return; // Don't show message for empty reservations
+    }
+
+    // Check if these teams are already in quiz_teams to avoid duplicates
+    const { data: existingQuizTeams, error: existingError } = await supabase
+      .from('quiz_teams')
+      .select('team_id')
+      .eq('quiz_instance_id', quizInstanceId);
+
+    if (existingError) {
+      console.error('Error checking existing quiz teams:', existingError);
+      return;
+    }
+
+    const existingTeamIds = existingQuizTeams?.map(qt => qt.team_id) || [];
+    console.log('Existing team IDs in quiz_teams:', existingTeamIds);
+
+    // Filter out teams that are already in quiz_teams
+    const newReservations = reservations.filter(res => !existingTeamIds.includes(res.team_id));
+
+    if (newReservations.length === 0) {
+      console.log('All reservation teams already added to quiz');
+      return; // Don't show message if teams already exist
+    }
+
+    // Convert new reservations to quiz_teams
+    const teamsToInsert = newReservations.map(reservation => ({
+      quiz_instance_id: quizInstanceId,
+      team_id: reservation.team_id,
+      number_of_players: reservation.number_of_players,
+    }));
+
+    console.log('Inserting new teams into quiz_teams:', teamsToInsert);
+
+    const { error: insertError } = await supabase
+      .from('quiz_teams')
+      .insert(teamsToInsert);
+
+    if (insertError) {
+      console.error('Insert error:', insertError);
+      messageBox.value.error('Chyba', 'Nepodařilo se přidat týmy z rezervací do kvízu.');
+    } else {
+      console.log(`Successfully added ${teamsToInsert.length} teams to quiz_teams`);
+      messageBox.value.success('Úspěch', `Bylo přidáno ${teamsToInsert.length} týmů z existujících rezervací.`);
+    }
+  } catch (error) {
+    console.error('Unexpected error in fetchReservationsAndAddToQuiz:', error);
+    messageBox.value.error('Chyba', 'Neočekávaná chyba při načítání rezervací.');
+  }
 };
 
 const loadExistingQuizInstance = async () => {
@@ -761,13 +941,13 @@ const loadExistingQuizInstance = async () => {
 
     currentQuizInstance.value = { ...data, place_name: data.places.name };
     isQuizStarted.value = data.current_round > 0;
-    
+
     // For EXISTING quiz instances, first try to load teams from reservations
     await fetchReservationsAndAddToQuiz(currentQuizInstance.value.id);
-    
+
     // Then load all quiz teams (including any that were just added from reservations)
     await fetchQuizTeams();
-    
+
     messageBox.value.success('Úspěch', 'Kvíz byl úspěšně načten.');
   } catch (err) {
     console.error('Unexpected error loading quiz instance:', err);
@@ -787,7 +967,7 @@ const addTeamToQuiz = async () => {
     messageBox.value.warning('Upozornění', 'Tento tým již byl do kvízu přidán.');
     return;
   }
-  
+
   const { error } = await supabase
     .from('quiz_teams')
     .insert([
@@ -797,7 +977,7 @@ const addTeamToQuiz = async () => {
         number_of_players: globalTeamPlayers.value,
       }
     ]);
-  
+
   if (error) {
     messageBox.value.error('Chyba', 'Nepodařilo se přidat tým do kvízu.');
   } else {
@@ -837,10 +1017,10 @@ const fetchQuizTeams = async () => {
 };
 
 const confirmRemoveTeamFromQuiz = async (quizTeamId) => {
-    const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete odebrat tento tým z kvízu?');
-    if (confirm) {
-        removeTeamFromQuiz(quizTeamId);
-    }
+  const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete odebrat tento tým z kvízu?');
+  if (confirm) {
+    removeTeamFromQuiz(quizTeamId);
+  }
 };
 
 const removeTeamFromQuiz = async (quizTeamId) => {
@@ -864,7 +1044,7 @@ const startQuiz = async () => {
     .from('quiz_instances')
     .update({ current_round: 1 })
     .eq('id', currentQuizInstance.value.id);
-  
+
   if (error) {
     messageBox.value.error('Chyba', 'Nepodařilo se spustit kvíz.');
   } else {
@@ -884,153 +1064,153 @@ const backToQuizSelection = async () => {
 };
 
 const confirmCancelQuizPreparation = async () => {
-    const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete zrušit přípravu tohoto kvízu? Akce je nevratná.');
-    if (confirm) {
-        cancelQuizPreparation();
-    }
+  const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete zrušit přípravu tohoto kvízu? Akce je nevratná.');
+  if (confirm) {
+    cancelQuizPreparation();
+  }
 };
 
 const cancelQuizPreparation = async () => {
-    if (!currentQuizInstance.value) return;
+  if (!currentQuizInstance.value) return;
 
-    // Smazání týmů přidělených k této instanci kvízu
-    const { error: teamsError } = await supabase
-        .from('quiz_teams')
-        .delete()
-        .eq('quiz_instance_id', currentQuizInstance.value.id);
+  // Smazání týmů přidělených k této instanci kvízu
+  const { error: teamsError } = await supabase
+    .from('quiz_teams')
+    .delete()
+    .eq('quiz_instance_id', currentQuizInstance.value.id);
 
-    if (teamsError) {
-        console.error('Chyba při mazání týmů z kvízu:', teamsError);
-        messageBox.value.error('Chyba', 'Nepodařilo se smazat týmy z kvízu.');
-        return;
-    }
+  if (teamsError) {
+    console.error('Chyba při mazání týmů z kvízu:', teamsError);
+    messageBox.value.error('Chyba', 'Nepodařilo se smazat týmy z kvízu.');
+    return;
+  }
 
-    // Smazání samotné instance kvízu
-    const { error: instanceError } = await supabase
-        .from('quiz_instances')
-        .delete()
-        .eq('id', currentQuizInstance.value.id);
-        
-    if (instanceError) {
-        console.error('Chyba při mazání instance kvízu:', instanceError);
-        messageBox.value.error('Chyba', 'Nepodařilo se smazat kvízovou instanci.');
-    } else {
-        currentQuizInstance.value = null;
-        isQuizStarted.value = false;
-        fetchActiveQuizInstances();
-        messageBox.value.success('Úspěch', 'Příprava kvízu byla úspěšně zrušena.');
-    }
+  // Smazání samotné instance kvízu
+  const { error: instanceError } = await supabase
+    .from('quiz_instances')
+    .delete()
+    .eq('id', currentQuizInstance.value.id);
+
+  if (instanceError) {
+    console.error('Chyba při mazání instance kvízu:', instanceError);
+    messageBox.value.error('Chyba', 'Nepodařilo se smazat kvízovou instanci.');
+  } else {
+    currentQuizInstance.value = null;
+    isQuizStarted.value = false;
+    fetchActiveQuizInstances();
+    messageBox.value.success('Úspěch', 'Příprava kvízu byla úspěšně zrušena.');
+  }
 };
 
 const updateScore = async (teamId, roundNumber, type, value) => {
-    let numericValue;
-    
-    // Handle empty value
-    if (value === '' || value === null || value === undefined) {
-        numericValue = null;
+  let numericValue;
+
+  // Handle empty value
+  if (value === '' || value === null || value === undefined) {
+    numericValue = null;
+  } else {
+    // Parse and validate the numeric value
+    const parsed = parseFloat(value);
+    if (isNaN(parsed) || parsed < 0) {
+      return; // Invalid input, don't update
+    }
+
+    // For regular scores, allow decimals with one decimal place
+    if (type === 'regular_score') {
+      // Round to one decimal place to handle floating point precision
+      numericValue = Math.round(parsed * 10) / 10;
     } else {
-        // Parse and validate the numeric value
-        const parsed = parseFloat(value);
-        if (isNaN(parsed) || parsed < 0) {
-            return; // Invalid input, don't update
-        }
-        
-        // For regular scores, allow decimals with one decimal place
-        if (type === 'regular_score') {
-            // Round to one decimal place to handle floating point precision
-            numericValue = Math.round(parsed * 10) / 10;
-        } else {
-            // For bonus scores, keep as is (should be 0 or 1)
-            numericValue = parsed;
-        }
+      // For bonus scores, keep as is (should be 0 or 1)
+      numericValue = parsed;
     }
-    
-    // Update local state immediately (optimistic update)
-    const team = quizTeams.value.find(t => t.id === teamId);
-    if (team) {
-        let existingScore = team.scores.find(s => s.round_number === roundNumber);
-        
-        if (existingScore) {
-            // Update existing score in local state
-            existingScore[type] = numericValue;
-        } else if (numericValue !== null) {
-            // Add new score to local state
-            const newScore = {
-                quiz_team_id: teamId,
-                round_number: roundNumber,
-                regular_score: type === 'regular_score' ? numericValue : null,
-                bonus_score: type === 'bonus_score' ? numericValue : null
-            };
-            team.scores.push(newScore);
-        }
-    }
-    
-    try {
-        // Check if score already exists in database
-        const { data: existingScore, error: fetchError } = await supabase
-            .from('scores')
-            .select('id, regular_score, bonus_score')
-            .eq('quiz_team_id', teamId)
-            .eq('round_number', roundNumber)
-            .single();
+  }
 
-        if (fetchError && fetchError.code !== 'PGRST116') {
-            throw fetchError;
-        }
+  // Update local state immediately (optimistic update)
+  const team = quizTeams.value.find(t => t.id === teamId);
+  if (team) {
+    let existingScore = team.scores.find(s => s.round_number === roundNumber);
 
-        if (existingScore) {
-            // Update existing score in database
-            const { error: updateError } = await supabase
-                .from('scores')
-                .update({ [type]: numericValue })
-                .eq('id', existingScore.id);
-                
-            if (updateError) throw updateError;
-        } else if (numericValue !== null) {
-            // Create new score record in database
-            const newScoreData = {
-                quiz_team_id: teamId,
-                round_number: roundNumber,
-                regular_score: type === 'regular_score' ? numericValue : null,
-                bonus_score: type === 'bonus_score' ? numericValue : null
-            };
-            
-            const { error: insertError } = await supabase
-                .from('scores')
-                .insert(newScoreData);
-                
-            if (insertError) throw insertError;
-        }
-        
-    } catch (err) {
-        console.error('Error updating score:', err);
-        messageBox.value.error('Chyba', 'Nepodařilo se aktualizovat skóre.');
-        // On error, refresh from database to restore correct state
-        await fetchQuizTeams();
+    if (existingScore) {
+      // Update existing score in local state
+      existingScore[type] = numericValue;
+    } else if (numericValue !== null) {
+      // Add new score to local state
+      const newScore = {
+        quiz_team_id: teamId,
+        round_number: roundNumber,
+        regular_score: type === 'regular_score' ? numericValue : null,
+        bonus_score: type === 'bonus_score' ? numericValue : null
+      };
+      team.scores.push(newScore);
     }
+  }
+
+  try {
+    // Check if score already exists in database
+    const { data: existingScore, error: fetchError } = await supabase
+      .from('scores')
+      .select('id, regular_score, bonus_score')
+      .eq('quiz_team_id', teamId)
+      .eq('round_number', roundNumber)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      throw fetchError;
+    }
+
+    if (existingScore) {
+      // Update existing score in database
+      const { error: updateError } = await supabase
+        .from('scores')
+        .update({ [type]: numericValue })
+        .eq('id', existingScore.id);
+
+      if (updateError) throw updateError;
+    } else if (numericValue !== null) {
+      // Create new score record in database
+      const newScoreData = {
+        quiz_team_id: teamId,
+        round_number: roundNumber,
+        regular_score: type === 'regular_score' ? numericValue : null,
+        bonus_score: type === 'bonus_score' ? numericValue : null
+      };
+
+      const { error: insertError } = await supabase
+        .from('scores')
+        .insert(newScoreData);
+
+      if (insertError) throw insertError;
+    }
+
+  } catch (err) {
+    console.error('Error updating score:', err);
+    messageBox.value.error('Chyba', 'Nepodařilo se aktualizovat skóre.');
+    // On error, refresh from database to restore correct state
+    await fetchQuizTeams();
+  }
 };
 
 const getScoreValue = (teamId, roundNumber, type) => {
-    const team = quizTeams.value.find(t => t.id === teamId);
-    if (!team || !team.scores) return 0;
-    
-    const score = team.scores.find(s => s.round_number === roundNumber);
-    return score ? (score[type] || 0) : 0;
+  const team = quizTeams.value.find(t => t.id === teamId);
+  if (!team || !team.scores) return 0;
+
+  const score = team.scores.find(s => s.round_number === roundNumber);
+  return score ? (score[type] || 0) : 0;
 };
 
 const toggleBonus = async (teamId, roundNumber) => {
-    const currentBonus = getScoreValue(teamId, roundNumber, 'bonus_score');
-    const newBonus = currentBonus === 1 ? 0 : 1;
-    
-    await updateScore(teamId, roundNumber, 'bonus_score', newBonus);
+  const currentBonus = getScoreValue(teamId, roundNumber, 'bonus_score');
+  const newBonus = currentBonus === 1 ? 0 : 1;
+
+  await updateScore(teamId, roundNumber, 'bonus_score', newBonus);
 };
 
 const calculateTotal = (team) => {
-    if (!team.scores || team.scores.length === 0) return 0;
-    
-    return team.scores.reduce((total, score) => {
-        return total + (score.regular_score || 0) + (score.bonus_score || 0);
-    }, 0);
+  if (!team.scores || team.scores.length === 0) return 0;
+
+  return team.scores.reduce((total, score) => {
+    return total + (score.regular_score || 0) + (score.bonus_score || 0);
+  }, 0);
 };
 
 const isRoundLocked = (roundNumber) => {
@@ -1040,108 +1220,95 @@ const isRoundLocked = (roundNumber) => {
 };
 
 const goToNextRound = async () => {
-    if (!currentQuizInstance.value) return;
-    
-    // Potvrzení před přesunem na další kolo
-    const confirm = await messageBox.value.prompt('Potvrzení', `Opravdu chcete začít kolo ${currentQuizInstance.value.current_round + 1}?`);
-    if (confirm) {
-        const { error } = await supabase
-            .from('quiz_instances')
-            .update({ 
-                current_round: currentQuizInstance.value.current_round + 1,
-                is_revealing: false,
-                revealed_index: 0,
-            })
-            .eq('id', currentQuizInstance.value.id);
+  if (!currentQuizInstance.value) return;
 
-        if (error) {
-            messageBox.value.error('Chyba', 'Nepodařilo se přejít na další kolo.');
-        } else {
-            currentQuizInstance.value.current_round++;
-            currentQuizInstance.value.is_revealing = false;
-            currentQuizInstance.value.revealed_index = 0;
-            messageBox.value.success('Úspěch', `Kvíz se přesunul na kolo ${currentQuizInstance.value.current_round}.`);
-        }
-    }
-};
-
-const confirmEndRound = async () => {
-    if (!currentQuizInstance.value) return;
-    const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete ukončit kolo a odhalit skóre?');
-    if (confirm) {
-        const { error } = await supabase
-            .from('quiz_instances')
-            .update({ 
-                is_revealing: true,
-                revealed_index: 0  // Reset revealed index when starting to reveal
-            })
-            .eq('id', currentQuizInstance.value.id);
-
-        if (error) {
-            messageBox.value.error('Chyba', 'Nepodařilo se ukončit kolo.');
-        } else {
-            currentQuizInstance.value.is_revealing = true;
-            currentQuizInstance.value.revealed_index = 0;
-            messageBox.value.success('Úspěch', 'Kolo bylo ukončeno. Můžete odhalovat skóre.');
-        }
-    }
-};
-
-const nextDisplayTeam = async () => {
-    if (!currentQuizInstance.value) return;
-
-    const { error } = await supabase
-        .from('quiz_instances')
-        .update({ revealed_index: (currentQuizInstance.value.revealed_index || 0) + 1 })
-        .eq('id', currentQuizInstance.value.id);
-
-    if (error) {
-        messageBox.value.error('Chyba', 'Nepodařilo se zobrazit další tým.');
-    } else {
-        currentQuizInstance.value.revealed_index++;
-    }
-};
-
-const resetDisplay = async () => {
-    if (!currentQuizInstance.value) return;
-
-    const { error } = await supabase
-        .from('quiz_instances')
-        .update({ revealed_index: 0, is_revealing: false })
-        .eq('id', currentQuizInstance.value.id);
-
-    if (error) {
-        messageBox.value.error('Chyba', 'Nepodařilo se resetovat zobrazení.');
-    } else {
-        currentQuizInstance.value.revealed_index = 0;
-        currentQuizInstance.value.is_revealing = false;
-        messageBox.value.success('Úspěch', 'Zobrazení bylo resetováno.');
-    }
-};
-
-const confirmFinishQuiz = async () => {
-    if (!currentQuizInstance.value) return;
-    const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete ukončit celý kvíz? Již nebude možné upravovat skóre a přesune se do historie.');
-    if (confirm) {
-        finishQuiz();
-    }
-};
-
-const finishQuiz = async () => {
-    if (!currentQuizInstance.value) return;
+  // Potvrzení před přesunem na další kolo
+  const confirm = await messageBox.value.prompt('Potvrzení', `Opravdu chcete začít kolo ${currentQuizInstance.value.current_round + 1}?`);
+  if (confirm) {
     const { error } = await supabase
       .from('quiz_instances')
-      .update({ is_completed: true })
+      .update({
+        current_round: currentQuizInstance.value.current_round + 1,
+        is_revealing: false,
+        revealed_index: 0,
+      })
       .eq('id', currentQuizInstance.value.id);
 
     if (error) {
-        messageBox.value.error('Chyba', 'Nepodařilo se ukončit kvíz.');
+      messageBox.value.error('Chyba', 'Nepodařilo se přejít na další kolo.');
     } else {
-        currentQuizInstance.value = null;
-        isQuizStarted.value = false;
-        fetchActiveQuizInstances();
-        messageBox.value.success('Úspěch', 'Kvíz byl úspěšně ukončen a přesunut do historie.');
+      currentQuizInstance.value.current_round++;
+      currentQuizInstance.value.is_revealing = false;
+      currentQuizInstance.value.revealed_index = 0;
+      messageBox.value.success('Úspěch', `Kvíz se přesunul na kolo ${currentQuizInstance.value.current_round}.`);
     }
+  }
+};
+
+const confirmEndRound = async () => {
+  if (!currentQuizInstance.value) return;
+  const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete ukončit kolo a zobrazit náhled výsledků?');
+  if (confirm) {
+    // Show preview modal instead of immediately starting revealing
+    showPreview();
+  }
+};
+
+const nextDisplayTeam = async () => {
+  if (!currentQuizInstance.value) return;
+
+  const { error } = await supabase
+    .from('quiz_instances')
+    .update({ revealed_index: (currentQuizInstance.value.revealed_index || 0) + 1 })
+    .eq('id', currentQuizInstance.value.id);
+
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se zobrazit další tým.');
+  } else {
+    currentQuizInstance.value.revealed_index++;
+  }
+};
+
+const resetDisplay = async () => {
+  if (!currentQuizInstance.value) return;
+
+  const { error } = await supabase
+    .from('quiz_instances')
+    .update({ revealed_index: 0, is_revealing: false })
+    .eq('id', currentQuizInstance.value.id);
+
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se resetovat zobrazení.');
+  } else {
+    currentQuizInstance.value.revealed_index = 0;
+    currentQuizInstance.value.is_revealing = false;
+    messageBox.value.success('Úspěch', 'Zobrazení bylo resetováno.');
+  }
+};
+
+const confirmFinishQuiz = async () => {
+  if (!currentQuizInstance.value) return;
+  const confirm = await messageBox.value.prompt('Potvrzení', 'Opravdu chcete ukončit celý kvíz? Již nebude možné upravovat skóre a přesune se do historie.');
+  if (confirm) {
+    finishQuiz();
+  }
+};
+
+const finishQuiz = async () => {
+  if (!currentQuizInstance.value) return;
+  const { error } = await supabase
+    .from('quiz_instances')
+    .update({ is_completed: true })
+    .eq('id', currentQuizInstance.value.id);
+
+  if (error) {
+    messageBox.value.error('Chyba', 'Nepodařilo se ukončit kvíz.');
+  } else {
+    currentQuizInstance.value = null;
+    isQuizStarted.value = false;
+    fetchActiveQuizInstances();
+    messageBox.value.success('Úspěch', 'Kvíz byl úspěšně ukončen a přesunut do historie.');
+  }
 };
 
 const addPlace = async () => {
@@ -1184,16 +1351,21 @@ const openDisplayBoard = () => {
 };
 
 const goToHistory = () => {
-    messageBox.value.info('Informace', 'Funkce historie není zatím implementována.');
+  window.location.href = '/quiz-history.html';
 };
 
 const toggleSettings = () => {
-    showSettings.value = !showSettings.value;
+  showSettings.value = !showSettings.value;
 };
 
 const toggleReservations = () => {
-    showReservations.value = !showReservations.value;
+  showReservations.value = !showReservations.value;
 };
+
+const toggleHistory = () => {
+  showHistory.value = !showHistory.value;
+};
+
 </script>
 
 <style scoped>
@@ -1202,6 +1374,289 @@ const toggleReservations = () => {
   min-height: 100vh;
   background: linear-gradient(135deg, #fdf6e3 0%, #f7f3e9 100%);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Preview Modal Styles */
+.preview-modal-overlay {
+  background-color: rgba(74, 54, 33, 0.9);
+  backdrop-filter: blur(8px);
+}
+
+.preview-modal {
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(74, 54, 33, 0.3);
+  width: 95%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow: hidden;
+  border: 2px solid rgba(20, 83, 45, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-modal-header {
+  background: linear-gradient(135deg, #14532d 0%, #2f855a 100%);
+  color: #fdf6e3;
+  padding: 1.5rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-shrink: 0;
+}
+
+.preview-modal-header .header-icon {
+  background: rgba(252, 191, 73, 0.2);
+  padding: 1rem;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(252, 191, 73, 0.3);
+}
+
+.preview-modal-header .header-icon .material-icons {
+  font-size: 1.5rem;
+  color: #fcbf49;
+}
+
+.preview-modal-header .header-info {
+  flex: 1;
+}
+
+.preview-modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.preview-modal-header p {
+  margin: 0.5rem 0 0 0;
+  opacity: 0.9;
+  font-size: 0.95rem;
+}
+
+.preview-modal-body {
+  padding: 2rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.preview-modal-footer {
+  background: rgba(20, 83, 45, 0.05);
+  border-top: 2px solid rgba(20, 83, 45, 0.1);
+  padding: 1.5rem 2rem;
+  flex-shrink: 0;
+}
+
+.preview-results {
+  margin-bottom: 1.5rem;
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid rgba(20, 83, 45, 0.1);
+}
+
+.results-header h3 {
+  color: #14532d;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.results-count {
+  background: #14532d;
+  color: #fdf6e3;
+  padding: 0.5rem 0.75rem;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.preview-table {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(20, 83, 45, 0.1);
+}
+
+.preview-table-header {
+  background: rgba(20, 83, 45, 0.05);
+  display: grid;
+  grid-template-columns: 80px 1fr 120px 100px;
+  font-weight: 600;
+  color: #14532d;
+  border-bottom: 1px solid rgba(20, 83, 45, 0.1);
+}
+
+.preview-table-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 120px 100px;
+  border-bottom: 1px solid rgba(20, 83, 45, 0.05);
+  transition: all 0.2s ease;
+}
+
+.preview-table-row:hover {
+  background: rgba(20, 83, 45, 0.02);
+}
+
+.preview-table-row.highlighted {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.preview-table-header>div,
+.preview-table-row>div {
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.col-team {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+.rank-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.revealed-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(34, 197, 94, 0.8);
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: pulse 2s infinite;
+}
+
+.revealed-indicator .material-icons {
+  font-size: 14px;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 5px rgba(34, 197, 94, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+
+.rank-gold {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  color: #4a3621;
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
+}
+
+.rank-silver {
+  background: linear-gradient(135deg, #c0c0c0 0%, #e5e7eb 100%);
+  color: #4a3621;
+  box-shadow: 0 4px 16px rgba(192, 192, 192, 0.4);
+}
+
+.rank-bronze {
+  background: linear-gradient(135deg, #cd7f32 0%, #d97706 100%);
+  color: #fdf6e3;
+  box-shadow: 0 4px 16px rgba(205, 127, 50, 0.4);
+}
+
+.rank-regular {
+  background: #ecf0f1;
+  color: #4a3621;
+}
+
+.team-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.team-name {
+  font-weight: 600;
+  color: #14532d;
+  font-size: 1rem;
+}
+
+.team-players {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.round-score-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.regular-score {
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: #14532d;
+}
+
+.bonus-score {
+  color: #2f855a;
+  font-weight: 700;
+  font-size: 0.75rem;
+  background: rgba(47, 133, 90, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  border: 1px solid rgba(47, 133, 90, 0.2);
+}
+
+.total-score {
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: #14532d;
+}
+
+.preview-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.control-section h4 {
+  color: #14532d;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+}
+
+.control-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 /* Password Modal Styles */
@@ -1311,8 +1766,15 @@ const toggleReservations = () => {
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-10px) rotate(180deg); }
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-10px) rotate(180deg);
+  }
 }
 
 .header-content {
@@ -1326,7 +1788,8 @@ const toggleReservations = () => {
   z-index: 2;
 }
 
-.header-left, .header-right {
+.header-left,
+.header-right {
   display: flex;
   gap: 1rem;
 }
@@ -1368,7 +1831,8 @@ const toggleReservations = () => {
 }
 
 /* Navigation and Action Buttons */
-.nav-button, .action-button {
+.nav-button,
+.action-button {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1384,7 +1848,8 @@ const toggleReservations = () => {
   backdrop-filter: blur(10px);
 }
 
-.nav-button:hover, .action-button:hover {
+.nav-button:hover,
+.action-button:hover {
   background: rgba(253, 246, 227, 0.2);
   border-color: rgba(253, 246, 227, 0.4);
   transform: translateY(-2px);
@@ -1473,7 +1938,8 @@ const toggleReservations = () => {
   align-items: end;
 }
 
-.text-input, .select-input {
+.text-input,
+.select-input {
   padding: 0.875rem 1rem;
   border: 2px solid rgba(107, 114, 128, 0.2);
   border-radius: 12px;
@@ -1484,7 +1950,8 @@ const toggleReservations = () => {
   flex: 1;
 }
 
-.text-input:focus, .select-input:focus {
+.text-input:focus,
+.select-input:focus {
   outline: none;
   border-color: #14532d;
   background-color: #ffffff;
@@ -1594,7 +2061,8 @@ const toggleReservations = () => {
 }
 
 /* Teams Section */
-.teams-section, .scores-section {
+.teams-section,
+.scores-section {
   margin-top: 2rem;
 }
 
@@ -1624,7 +2092,8 @@ const toggleReservations = () => {
 }
 
 /* Table Styles */
-.teams-table, .scores-table {
+.teams-table,
+.scores-table {
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid rgba(20, 83, 45, 0.1);
@@ -1667,7 +2136,8 @@ const toggleReservations = () => {
   gap: 0;
 }
 
-.table-header > div, .table-row > div {
+.table-header>div,
+.table-row>div {
   padding: 1rem;
   display: flex;
   align-items: center;
@@ -1675,7 +2145,8 @@ const toggleReservations = () => {
   border-right: 1px solid rgba(20, 83, 45, 0.05);
 }
 
-.table-header > div:last-child, .table-row > div:last-child {
+.table-header>div:last-child,
+.table-row>div:last-child {
   border-right: none;
 }
 
@@ -1688,7 +2159,8 @@ const toggleReservations = () => {
   gap: 1rem;
 }
 
-.col-players, .col-actions {
+.col-players,
+.col-actions {
   justify-content: center;
   align-items: center;
   text-align: center;
@@ -1973,84 +2445,140 @@ const toggleReservations = () => {
   .page-header {
     padding: 1.5rem 1rem;
   }
-  
+
   .header-content {
     grid-template-columns: 1fr;
     text-align: center;
     gap: 1.5rem;
   }
-  
-  .header-left, .header-right {
+
+  .header-left,
+  .header-right {
     justify-content: center;
   }
-  
+
   .page-title {
     font-size: 1.75rem;
   }
-  
+
   .content-container {
     padding: 1rem;
   }
-  
+
   .card-content {
     padding: 1.5rem;
   }
-  
+
   .form-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .input-row {
     flex-direction: column;
   }
-  
+
   .actions-section {
     flex-direction: column;
     align-items: center;
   }
-  
+
   .control-panel {
     flex-direction: column;
   }
-  
+
   .scores-table .table-header,
   .scores-table .table-row {
     grid-template-columns: 200px repeat(5, 80px) 80px;
     gap: 0;
   }
-  
-  .scores-table .table-header > div,
-  .scores-table .table-row > div {
+
+  .scores-table .table-header>div,
+  .scores-table .table-row>div {
     padding: 0.5rem 0.25rem;
     font-size: 0.8rem;
   }
-  
+
   .col-team {
     min-width: 200px;
     padding-left: 1rem;
   }
-  
+
   .score-input {
     width: 55px;
     padding: 0.5rem 0.25rem;
     font-size: 0.9rem;
   }
-  
+
   .bonus-btn {
     width: 45px;
     height: 32px;
     font-size: 0.65rem;
     padding: 0.25rem 0.5rem;
   }
-  
+
   .password-modal {
     width: 95%;
     max-width: 400px;
   }
-  
+
   .password-input {
     min-width: auto;
     font-size: 1rem;
+  }
+
+  /* Preview Modal Responsive */
+  .preview-modal {
+    width: 98%;
+    max-height: 95vh;
+  }
+
+  .preview-modal-header {
+    padding: 1.5rem;
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+
+  .preview-modal-body {
+    padding: 1.5rem;
+  }
+
+  .preview-modal-footer {
+    padding: 1.5rem;
+  }
+
+  .preview-controls {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .control-buttons {
+    justify-content: center;
+  }
+
+  .preview-table-header,
+  .preview-table-row {
+    grid-template-columns: 60px 1fr 80px 70px;
+    font-size: 0.875rem;
+  }
+
+  .preview-table-header>div,
+  .preview-table-row>div {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .rank-badge {
+    width: 35px;
+    height: 35px;
+    font-size: 1rem;
+  }
+
+  .team-name {
+    font-size: 0.9rem;
+  }
+
+  .team-players {
+    font-size: 0.75rem;
   }
 }
 
@@ -2059,47 +2587,86 @@ const toggleReservations = () => {
     flex-direction: column;
     gap: 1rem;
   }
-  
+
   .modal-header {
     padding: 1.5rem;
   }
-  
+
   .modal-body {
     padding: 1.5rem;
   }
-  
+
   .settings-modal,
   .reservations-modal {
     width: 95%;
     margin: 1rem;
   }
-  
+
   .scores-table .table-header,
   .scores-table .table-row {
     grid-template-columns: 150px repeat(5, 60px) 60px;
   }
-  
+
   .col-team {
     min-width: 150px;
     padding-left: 0.5rem;
   }
-  
+
   .team-name {
     font-size: 0.9rem;
   }
-  
+
   .team-players {
     font-size: 0.75rem;
   }
-  
+
   .score-input {
     width: 45px;
   }
-  
+
   .bonus-btn {
     width: 35px;
     height: 20px;
     font-size: 0.55rem;
+  }
+
+  /* Preview Modal Mobile */
+  .preview-modal-header {
+    padding: 1rem;
+  }
+
+  .preview-modal-header .header-icon {
+    padding: 0.75rem;
+  }
+
+  .preview-modal-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .preview-table-header,
+  .preview-table-row {
+    grid-template-columns: 50px 1fr 60px 60px;
+    font-size: 0.75rem;
+  }
+
+  .preview-table-header>div,
+  .preview-table-row>div {
+    padding: 0.5rem 0.25rem;
+  }
+
+  .rank-badge {
+    width: 30px;
+    height: 30px;
+    font-size: 0.875rem;
+  }
+
+  .control-buttons {
+    flex-direction: column;
+  }
+
+  .control-buttons .button {
+    width: 100%;
+    justify-content: center;
   }
 }
 </style>
